@@ -1,0 +1,111 @@
+services:
+  mongodb:
+    # Real MongoDB Atlas locally: a single-node replica set with `mongot` (the
+    # Atlas Search process running Lucene) co-located alongside `mongod`. Same
+    # `$vectorSearch`, same `vectorSearch`-type search index, same wire protocol
+    # you'd talk to in Atlas in the cloud. First boot takes ~20s while mongot
+    # initializes; the healthcheck below gates `demo-ui` until that's done.
+    image: mongodb/mongodb-atlas-local:latest
+    pull_policy: missing
+    restart: unless-stopped
+    # Pin the container hostname so the replica-set config (persisted in the
+    # `local.system.replset` collection inside `/data/db`) keeps pointing at
+    # the same node across `docker compose down && up` cycles. Without this
+    # pin, each new container gets a fresh random hostname, the persisted
+    # replset config no longer matches the running node, and mongod sits
+    # forever as an `RSGhost` "waiting for reconfig" instead of accepting
+    # connections — the runner then panics and the container restart-loops.
+    hostname: mdb-lucene-mongodb
+    ports:
+      - "${WIRE_PORT:-27018}:27017"
+    volumes:
+      # `/data/db` is mongod's data dir. `/data/configdb` is where the Atlas Local
+      # runner generates the replica-set keyfile on first init and reads it back
+      # on every subsequent start. If only `/data/db` is persisted (a common
+      # half-broken config), the second `docker compose up` fails with
+      # `Unable to acquire security key[s]` because the data volume looks
+      # "already initialized" but the keyfile is gone with the container.
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    networks:
+      - mdb-lucene-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  lucene-search:
+    # ~200-line Java service exposing Apache Lucene 9 over plain HTTP. BM25
+    # full-text AND native HNSW kNN — the same primitive Atlas $vectorSearch
+    # sits on top of. Powers the engine-equivalence panel.
+    build:
+      context: ./services/lucene-search
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${LUCENE_PORT:-9090}:9090"
+    volumes:
+      - lucene-index:/app/lucene/index
+    environment:
+      LUCENE_INDEX_DIR: /app/lucene/index
+      LUCENE_HTTP_PORT: "9090"
+    networks:
+      - mdb-lucene-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9090/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  demo-ui:
+    # FastAPI app that auto-seeds 20 movies + 26 reviews into both back ends,
+    # programmatically creates a real Atlas Vector Search index *with filter-type
+    # fields*, and serves the composable-pipeline panel + the engine-equivalence
+    # panel at http://localhost:${DEMO_UI_PORT:-8088}.
+    build:
+      context: ./services/demo-ui
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DEMO_UI_PORT:-8088}:8000"
+    environment:
+      MONGO_URI: "mongodb://mongodb:27017/?directConnection=true"
+      LUCENE_URL: "http://lucene-search:9090"
+      DEMO_DB: demo
+      DEMO_COLLECTION: movies
+      EMBED_MODEL: sentence-transformers/all-MiniLM-L6-v2
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      lucene-search:
+        condition: service_healthy
+    networks:
+      - mdb-lucene-net
+    healthcheck:
+      # `slim-bookworm` has no curl/wget, so we use Python's stdlib urllib.
+      # /readyz returns 200 only after the seed + vector-index build are done;
+      # 503 (with seed_error) otherwise. So `docker compose up --wait` actually
+      # blocks until the demo is queryable, not just until uvicorn has bound.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=2); sys.exit(0 if r.status==200 else 1)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 45s
+
+volumes:
+  mongodb-data:
+  mongodb-config:
+  lucene-index:
+
+networks:
+  mdb-lucene-net:
+    driver: bridge

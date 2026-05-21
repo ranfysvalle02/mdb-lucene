@@ -1,0 +1,2537 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>mdb-lucene · the platform absorbs the complexity, the query language carries the convenience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131a2e;
+      --panel-2: #1a2340;
+      --text: #e7ecf3;
+      --muted: #9aa6c2;
+      --accent: #7aa2ff;
+      --accent-2: #7be0c2;
+      --warn: #f7c074;
+      --err: #ff7a7a;
+      --border: #232c4a;
+      --bm25: #f7c074;
+      --vec: #7aa2ff;
+      --lvec: #c79bff;
+      --both: #7be0c2;
+      --atlas: #00ed64;
+      --glue: #ff9faa;
+    }
+    * { box-sizing: border-box; }
+    html, body { background: var(--bg); color: var(--text); margin: 0; padding: 0;
+      font: 14px/1.5 ui-sans-serif, system-ui, "Inter", "Segoe UI", Roboto, sans-serif; }
+    a { color: var(--accent); }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex;
+      gap: 16px; align-items: baseline; flex-wrap: wrap; }
+    header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+    header .muted { color: var(--muted); font-size: 13px; }
+    main { padding: 20px 32px; max-width: 1240px; margin: 0 auto; }
+
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px;
+      background: var(--panel-2); color: var(--muted); font-size: 12px; }
+    .pill.ok { color: var(--accent-2); }
+    .pill.err { color: var(--err); }
+
+    /* ---------- HERO ---------- */
+    .hero { background:
+        radial-gradient(1200px 240px at 10% -20%, rgba(0,237,100,.10), transparent 60%),
+        radial-gradient(800px 200px at 100% 0%, rgba(122,162,255,.10), transparent 60%),
+        var(--panel);
+      border: 1px solid var(--border); border-radius: 12px; padding: 26px 28px; margin-bottom: 18px; }
+    .hero .eyebrow { color: var(--atlas); font-size: 11px; letter-spacing: .25em;
+      text-transform: uppercase; margin: 0 0 10px 0; font-weight: 700; }
+    .hero h2 { margin: 0 0 10px 0; font-size: 26px; line-height: 1.25; letter-spacing: .1px;
+      max-width: 920px; }
+    .hero h2 .accent { color: var(--atlas); }
+    .hero h2 strike { color: var(--muted); text-decoration-thickness: 2px;
+      text-decoration-color: rgba(255,122,122,.6); }
+    .hero .lede { color: var(--muted); font-size: 14px; max-width: 920px; margin: 8px 0 18px 0; }
+    .hero .lede strong { color: var(--text); }
+
+    /* concrete-example callout in the hero */
+    .walkthrough { background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px; margin: 16px 0 18px 0; }
+    .walkthrough .scene { color: var(--text); font-size: 14px; line-height: 1.55; margin: 0 0 14px 0; }
+    .walkthrough .scene strong { color: var(--atlas); }
+    .walkthrough ol.steps { margin: 0 0 14px 0; padding: 0 0 0 0; counter-reset: step;
+      list-style: none; display: grid; gap: 8px; }
+    .walkthrough ol.steps li { padding: 10px 12px 10px 44px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 8px; position: relative;
+      color: var(--text); font-size: 13px; line-height: 1.5; counter-increment: step; }
+    .walkthrough ol.steps li::before { content: counter(step); position: absolute;
+      left: 12px; top: 50%; transform: translateY(-50%);
+      width: 22px; height: 22px; line-height: 22px; text-align: center;
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 50%;
+      color: var(--muted); font-weight: 700; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .walkthrough ol.steps li.vector { border-color: rgba(0,237,100,.45);
+      background: rgba(0,237,100,.05); }
+    .walkthrough ol.steps li.vector::before { color: var(--atlas);
+      border-color: rgba(0,237,100,.45); background: rgba(0,237,100,.10); }
+    .walkthrough ol.steps li .what { color: var(--text); font-weight: 600; }
+    .walkthrough ol.steps li .nerd { color: var(--muted); font-size: 12px; }
+    .walkthrough ol.steps li .vec-pill { display: inline-block; margin-left: 6px;
+      padding: 1px 6px; background: rgba(0,237,100,.12); border: 1px solid rgba(0,237,100,.45);
+      color: var(--atlas); font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+      border-radius: 999px; text-transform: uppercase; vertical-align: middle; }
+    .walkthrough .punchline { color: var(--text); font-size: 13.5px; line-height: 1.55;
+      padding: 12px 14px; background: rgba(255,159,170,.06);
+      border: 1px solid rgba(255,159,170,.28); border-radius: 8px; margin: 0; }
+    .walkthrough .punchline strong { color: var(--text); }
+    .walkthrough .punchline em.glue { color: var(--glue); font-style: normal; font-weight: 700; }
+    .walkthrough .punchline em.atlas { color: var(--atlas); font-style: normal; font-weight: 700; }
+    .walkthrough .metaphor { color: var(--muted); font-size: 13px; line-height: 1.5;
+      margin: 12px 0 0 0; padding: 0 4px; }
+    .walkthrough .metaphor strong { color: var(--text); }
+
+    /* ---------- THE UNBROKEN THREAD timeline ---------- */
+    .thread { background: linear-gradient(180deg, #0a1226 0%, #0f1a30 100%);
+      border: 1px solid rgba(0,237,100,.32); border-radius: 12px;
+      padding: 22px 22px 20px 22px; margin: 22px 0 26px 0;
+      box-shadow: 0 0 0 1px rgba(0,237,100,.04) inset; }
+    .thread .eyebrow { color: var(--atlas); font-size: 10.5px; letter-spacing: .25em;
+      text-transform: uppercase; font-weight: 700; margin: 0 0 6px 0; }
+    .thread h3 { margin: 0 0 12px 0; font-size: 19px; line-height: 1.3; }
+    .thread h3 em { color: var(--atlas); font-style: normal; }
+    .thread .lead { color: var(--text); font-size: 13.5px; line-height: 1.55; margin: 0 0 18px 0;
+      max-width: 940px; }
+    .thread .lead strong { color: var(--text); }
+    .thread-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch;
+      margin: 0 0 18px 0; }
+    .thread-strip .tnode { flex: 1 1 110px; min-width: 110px; max-width: 150px;
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
+      position: relative; }
+    .thread-strip .tnode.foundation { border-color: rgba(0,237,100,.55);
+      background: linear-gradient(180deg, rgba(0,237,100,.10) 0%, var(--panel-2) 100%); }
+    .thread-strip .tnode.vector { border-color: rgba(0,237,100,.45); }
+    .thread-strip .tnode .yr { color: var(--atlas); font-size: 10.5px;
+      letter-spacing: .15em; text-transform: uppercase; font-weight: 700; }
+    .thread-strip .tnode.foundation .yr { color: var(--atlas); }
+    .thread-strip .tnode .what { color: var(--text); font-size: 12px; font-weight: 700;
+      line-height: 1.25; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .thread-strip .tnode .why { color: var(--muted); font-size: 10.5px; line-height: 1.35;
+      margin-top: 1px; }
+    .thread-strip .tarrow { display: flex; align-items: center; color: var(--muted);
+      opacity: .35; font-size: 11px; padding: 0 1px; }
+
+    /* clickable timeline nodes — affordance + tooltip */
+    .thread-strip .tnode { cursor: pointer; transition: border-color .18s ease, transform .18s ease,
+      box-shadow .18s ease, background .18s ease; }
+    .thread-strip .tnode:hover, .thread-strip .tnode:focus-visible {
+      border-color: rgba(0,237,100,.65); transform: translateY(-1px);
+      box-shadow: 0 4px 14px -8px rgba(0,237,100,.5); outline: none; }
+    .thread-strip .tnode::after { content: "+"; position: absolute; top: 5px; right: 6px;
+      width: 14px; height: 14px; line-height: 13px; text-align: center; font-size: 14px;
+      font-weight: 600; color: var(--atlas); opacity: .25; transition: opacity .18s ease,
+      transform .18s ease; border: 1px solid rgba(0,237,100,.25); border-radius: 50%; }
+    .thread-strip .tnode:hover::after, .thread-strip .tnode:focus-visible::after {
+      opacity: .9; transform: rotate(45deg); }
+
+    /* the reader contract — quiet, deliberately understated; the page's only meta-statement about itself */
+    .reader-contract { margin: 18px 0 0 0; padding: 14px 18px 12px;
+      background: transparent; border: 1px dashed rgba(255,255,255,.10);
+      border-left: 2px solid rgba(255,255,255,.18); border-radius: 4px;
+      max-width: 940px; }
+    .reader-contract .rc-label { color: var(--muted); font-size: 10px; letter-spacing: .22em;
+      text-transform: uppercase; font-weight: 700; margin: 0 0 8px 0; opacity: .7; }
+    .reader-contract .rc-quote { color: var(--text); font-size: 14px; line-height: 1.55;
+      font-style: italic; font-weight: 500; margin: 0 0 10px 0; max-width: 820px; }
+    .reader-contract .rc-quotemark { color: var(--muted); opacity: .4; font-style: normal;
+      font-weight: 700; padding: 0 1px; }
+    .reader-contract .rc-accent { color: var(--text); font-style: italic; font-weight: 600;
+      border-bottom: 1px dotted rgba(0,237,100,.4); }
+    .reader-contract .rc-meta { color: var(--muted); font-size: 12px; line-height: 1.55;
+      margin: 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.06); }
+    .reader-contract .rc-meta em { color: var(--text); font-style: italic; }
+
+    /* the operational form of the strategy — hero refrain block */
+    .strategy-refrain { background: linear-gradient(135deg, rgba(0,237,100,.06) 0%,
+      rgba(0,237,100,.02) 60%, var(--panel) 100%);
+      border: 1px solid rgba(0,237,100,.25); border-left: 3px solid var(--atlas);
+      border-radius: 10px; padding: 18px 22px; margin: 0 0 18px 0; max-width: 940px; }
+    .strategy-refrain .sr-eyebrow { color: var(--atlas); font-size: 10.5px; letter-spacing: .18em;
+      text-transform: uppercase; font-weight: 700; margin: 0 0 10px 0; }
+    .strategy-refrain .sr-quote { color: var(--text); font-size: 18px; line-height: 1.45;
+      font-weight: 600; font-style: italic; margin: 0 0 14px 0; padding: 0;
+      border: none; max-width: 760px; position: relative; }
+    .strategy-refrain .sr-quotemark { color: var(--atlas); font-size: 26px; font-weight: 800;
+      font-style: normal; opacity: .65; padding: 0 1px; vertical-align: -2px; }
+    .strategy-refrain .sr-accent { color: var(--atlas); font-style: normal; font-weight: 700; }
+    .strategy-refrain .sr-decode { color: var(--muted); font-size: 13px; line-height: 1.55;
+      font-style: italic; margin: 0 0 10px 0; }
+    .strategy-refrain .sr-list { list-style: none; margin: 0 0 12px 0; padding: 0;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+    @media (max-width: 720px) { .strategy-refrain .sr-list { grid-template-columns: 1fr; } }
+    .strategy-refrain .sr-list li { color: var(--muted); font-size: 12.5px; line-height: 1.55;
+      padding: 2px 0; }
+    .strategy-refrain .sr-list .sr-shape { color: var(--text); font-weight: 600; }
+    .strategy-refrain .sr-list code { color: var(--atlas); background: rgba(0,237,100,.08);
+      padding: 1px 5px; border-radius: 3px; font-size: 11.5px; font-weight: 600; }
+    .strategy-refrain .sr-closer { color: var(--text); font-size: 13px; line-height: 1.55;
+      margin: 0; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.08); }
+    .strategy-refrain .sr-closer strong { color: var(--atlas); }
+    .strategy-refrain .sr-closer em { color: var(--muted); }
+
+    /* clickable platform-map tiles — affordance */
+    .pm-tile { cursor: pointer; }
+    .pm-tile { position: relative; }
+    .pm-tile::after { content: "+"; position: absolute; top: 6px; right: 8px;
+      width: 14px; height: 14px; line-height: 13px; text-align: center; font-size: 14px;
+      font-weight: 600; color: var(--atlas); opacity: .25; transition: opacity .18s ease,
+      transform .18s ease; border: 1px solid rgba(0,237,100,.25); border-radius: 50%; }
+    .pm-tile:hover::after, .pm-tile:focus-visible::after {
+      opacity: .9; transform: rotate(45deg); }
+    .pm-tile:focus-visible { outline: 2px solid rgba(0,237,100,.5); outline-offset: 2px; }
+
+    /* lightweight modal — overlay + dialog */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(7,12,12,.78);
+      backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center;
+      z-index: 1000; padding: 24px; opacity: 0; transition: opacity .18s ease; }
+    .modal-overlay.open { display: flex; opacity: 1; }
+    .modal-dialog { background: var(--panel); border: 1px solid rgba(0,237,100,.35);
+      border-left: 3px solid var(--atlas); border-radius: 10px;
+      max-width: 620px; width: 100%; max-height: calc(100vh - 48px); overflow-y: auto;
+      padding: 24px 26px; box-shadow: 0 20px 60px -20px rgba(0,0,0,.7);
+      transform: translateY(8px) scale(.98); transition: transform .18s ease; }
+    .modal-overlay.open .modal-dialog { transform: translateY(0) scale(1); }
+    .modal-dialog .modal-close { position: absolute; top: 10px; right: 10px; background: transparent;
+      border: 1px solid var(--border); color: var(--muted); width: 28px; height: 28px;
+      border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer;
+      transition: color .15s ease, border-color .15s ease; }
+    .modal-dialog .modal-close:hover { color: var(--atlas); border-color: rgba(0,237,100,.5); }
+    .modal-dialog { position: relative; }
+    .modal-eyebrow { color: var(--atlas); font-size: 10.5px; letter-spacing: .18em;
+      text-transform: uppercase; font-weight: 700; margin: 0 0 6px 0; }
+    .modal-title { color: var(--text); font-size: 20px; line-height: 1.25; font-weight: 700;
+      margin: 0 0 4px 0; }
+    .modal-title code { color: var(--accent); background: rgba(122,162,255,.10);
+      padding: 2px 6px; border-radius: 4px; font-size: 16px; font-weight: 600; }
+    .modal-subtitle { color: var(--muted); font-size: 12px; margin: 0 0 16px 0;
+      letter-spacing: .04em; }
+    .modal-section { margin: 0 0 14px 0; }
+    .modal-section .ms-label { color: var(--atlas); font-size: 10.5px; letter-spacing: .15em;
+      text-transform: uppercase; font-weight: 700; margin: 0 0 4px 0; }
+    .modal-section .ms-body { color: var(--text); font-size: 13.5px; line-height: 1.6; margin: 0; }
+    .modal-section .ms-body code { color: var(--atlas); background: rgba(0,237,100,.10);
+      padding: 1px 5px; border-radius: 3px; font-size: 12px; font-weight: 600; }
+    .modal-section .ms-body strong { color: var(--text); }
+    .modal-section.before { border-left: 2px solid var(--glue); padding-left: 12px;
+      background: rgba(255,121,90,.04); border-radius: 0 6px 6px 0; padding: 10px 12px; }
+    .modal-section.before .ms-label { color: var(--glue); }
+    .modal-section.before .ms-body { color: var(--muted); font-style: italic; }
+    .modal-section.after { border-left: 2px solid var(--atlas); padding-left: 12px;
+      background: rgba(0,237,100,.05); border-radius: 0 6px 6px 0; padding: 10px 12px; }
+    .modal-quote { color: var(--text); font-size: 13.5px; line-height: 1.55; font-style: italic;
+      padding: 12px 16px; background: var(--panel-2); border-radius: 6px; border: 1px dashed
+      rgba(255,255,255,.10); margin: 14px 0 0 0; }
+    .modal-quote .mq-attrib { display: block; color: var(--muted); font-style: normal;
+      font-size: 11px; margin-top: 6px; }
+    .thread .pattern { color: var(--text); font-size: 13px; line-height: 1.55;
+      margin: 0 0 14px 0; max-width: 940px; }
+    .thread .pattern strong { color: var(--atlas); }
+    .thread .quote { background: var(--panel); border-left: 3px solid var(--atlas);
+      border-radius: 6px; padding: 13px 16px; margin: 0 0 14px 0;
+      color: var(--text); font-size: 13.5px; line-height: 1.6; font-style: italic;
+      max-width: 940px; }
+    .thread .quote strong { color: var(--atlas); font-style: normal; }
+    .thread .closer { color: var(--text); font-size: 13px; line-height: 1.55; margin: 0;
+      max-width: 940px; }
+    .thread .closer strong { color: var(--text); }
+    .thread .cite { color: var(--muted); font-size: 11.5px; margin: 12px 0 0 0;
+      padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.08); }
+    .thread .cite a { color: var(--atlas); }
+
+    .pillars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 16px; }
+    @media (max-width: 1100px) { .pillars { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .pillars { grid-template-columns: 1fr; } }
+    .pillar { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 11px 13px; }
+    .pillar .num { color: var(--atlas); font-weight: 700; font-size: 10px; letter-spacing: .2em;
+      text-transform: uppercase; }
+    .pillar h4 { margin: 4px 0 4px 0; font-size: 13px; line-height: 1.3; }
+    .pillar p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .pillar p code { color: var(--text); }
+
+    /* ---------- shared card ---------- */
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; }
+    .card h2 { margin: 0 0 4px 0; font-size: 14px; letter-spacing: .3px;
+      text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center;
+      flex-wrap: wrap; }
+    .card .sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+    .card .took { color: var(--accent-2); font-weight: 500; text-transform: none; margin-left: auto; }
+    .grid { display: grid; gap: 16px; margin-top: 18px; }
+    .grid.two   { grid-template-columns: 1fr 1fr; }
+    .grid.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 980px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
+
+    .card.atlas { border-color: rgba(0,237,100,.40); box-shadow: 0 0 0 1px rgba(0,237,100,.10) inset; }
+    .card.glue  { border-color: rgba(255,159,170,.40); box-shadow: 0 0 0 1px rgba(255,159,170,.10) inset; }
+
+    /* ---------- composable form ---------- */
+    .composable-form { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px;
+      gap: 12px; align-items: end; padding: 16px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 10px; }
+    @media (max-width: 980px) { .composable-form { grid-template-columns: 1fr 1fr; } }
+    .composable-form label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .composable-form input, .composable-form select, .composable-form button {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--panel-2); color: var(--text); font: inherit; }
+    .composable-form button { cursor: pointer; background: var(--atlas); color: #06241a;
+      border: none; font-weight: 700; }
+    .composable-form button:hover { filter: brightness(1.05); }
+    .form-help { color: var(--muted); font-size: 12px; padding: 0 4px; margin-top: 8px;
+      display: flex; gap: 14px; flex-wrap: wrap; }
+
+    /* ---------- pipeline render ---------- */
+    /* ---------- pipeline shape chips (always visible) ---------- */
+    .stage-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+      margin: 0 0 10px 0; padding: 8px 10px; background: #0a1226;
+      border: 1px solid var(--border); border-radius: 8px; }
+    .stage-chips .label { color: var(--muted); font-size: 10.5px; letter-spacing: .15em;
+      text-transform: uppercase; margin-right: 6px; font-weight: 700; }
+    .stage-chips .chip-stage { display: inline-flex; align-items: center; padding: 3px 8px;
+      background: rgba(0,237,100,.10); border: 1px solid rgba(0,237,100,.32);
+      color: var(--atlas); border-radius: 999px; font-size: 11px; font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .02em; white-space: nowrap; }
+    .stage-chips .chip-stage.glue { background: rgba(255,159,170,.08);
+      border-color: rgba(255,159,170,.32); color: var(--glue); }
+    .stage-chips .arrow { color: var(--muted); font-size: 11px; opacity: .55; }
+    .stage-chips .meta-suffix { color: var(--muted); font-size: 11px; margin-left: auto;
+      font-style: italic; padding-left: 8px; }
+
+    /* ---------- collapsible pipeline JSON (proof on demand) ---------- */
+    details.pipeline-fold { background: #0a1226; border: 1px solid var(--border);
+      border-radius: 8px; margin: 0 0 10px 0; overflow: hidden; }
+    details.pipeline-fold > summary { list-style: none; cursor: pointer; padding: 8px 12px;
+      color: var(--muted); font-size: 11.5px; display: flex; align-items: center; gap: 8px;
+      user-select: none; }
+    details.pipeline-fold > summary::-webkit-details-marker { display: none; }
+    details.pipeline-fold > summary::before { content: "▸"; color: var(--muted);
+      transition: transform .15s; display: inline-block; font-size: 10px; }
+    details.pipeline-fold[open] > summary::before { transform: rotate(90deg); }
+    details.pipeline-fold > summary:hover { color: var(--text); }
+    details.pipeline-fold > summary .badge { display: inline-block; padding: 1px 6px;
+      background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 4px;
+      font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--text); }
+    details.pipeline-fold .pipeline-body { border-top: 1px solid var(--border);
+      max-height: 360px; overflow: auto; }
+
+    /* ---------- THE 5+1 MQL FOLD (under the hero walkthrough) ---------- */
+    details.mql-fold { background: #0a1226; border: 1px solid rgba(0,237,100,.32);
+      border-radius: 10px; margin: 14px 0 0 0; overflow: hidden; }
+    details.mql-fold > summary { list-style: none; cursor: pointer;
+      padding: 12px 16px; color: var(--atlas); font-weight: 700; font-size: 12.5px;
+      letter-spacing: .05em; display: flex; align-items: center; gap: 10px;
+      user-select: none; }
+    details.mql-fold > summary::-webkit-details-marker { display: none; }
+    details.mql-fold > summary::before { content: "▸"; color: var(--atlas);
+      transition: transform .15s; display: inline-block; font-size: 11px; }
+    details.mql-fold[open] > summary::before { transform: rotate(90deg); }
+    details.mql-fold > summary:hover { color: var(--text); }
+    details.mql-fold > summary .mql-badge { display: inline-block; padding: 2px 8px;
+      background: rgba(0,237,100,.10); border: 1px solid rgba(0,237,100,.32);
+      border-radius: 999px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10.5px; color: var(--atlas); margin-left: auto; letter-spacing: .02em; }
+    details.mql-fold .mql-body { border-top: 1px solid rgba(0,237,100,.20);
+      padding: 4px 16px 16px 16px; max-height: 720px; overflow: auto; }
+    details.mql-fold .mql-step { margin: 14px 0 0 0; }
+    details.mql-fold .mql-step-h { color: var(--text); font-size: 12.5px;
+      font-weight: 700; margin: 0 0 4px 0; }
+    details.mql-fold .mql-step-h .mql-num { display: inline-block; width: 22px; height: 22px;
+      line-height: 22px; text-align: center; border-radius: 50%;
+      background: rgba(0,237,100,.18); color: var(--atlas); font-size: 11px;
+      margin-right: 8px; font-weight: 700; }
+    details.mql-fold .mql-step-h.vector .mql-num { background: var(--atlas); color: #0a1226; }
+    details.mql-fold .mql-step-h .mql-tag { color: var(--muted); font-weight: 500;
+      font-style: italic; margin-left: 6px; font-size: 11.5px; }
+    details.mql-fold pre.mql { background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px; margin: 0; overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11.5px; line-height: 1.55; color: var(--text); }
+    details.mql-fold pre.mql .kw  { color: var(--atlas); font-weight: 700; }
+    details.mql-fold pre.mql .op  { color: var(--accent); font-weight: 700; }
+    details.mql-fold pre.mql .str { color: var(--accent-2); }
+    details.mql-fold pre.mql .num { color: var(--warn); }
+    details.mql-fold pre.mql .com { color: var(--muted); font-style: italic; }
+    details.mql-fold .mql-divider { margin: 22px 0 0 0; padding-top: 18px;
+      border-top: 1px dashed rgba(0,237,100,.30);
+      color: var(--atlas); font-size: 11.5px; letter-spacing: .15em;
+      text-transform: uppercase; font-weight: 700; }
+    details.mql-fold .mql-divider .mql-divider-sub { display: block;
+      color: var(--text); font-size: 12.5px; font-weight: 600;
+      letter-spacing: .01em; text-transform: none; margin-top: 4px; }
+    details.mql-fold .mql-after { margin: 14px 0 0 0; color: var(--text);
+      font-size: 12.5px; line-height: 1.55; }
+    details.mql-fold .mql-after strong { color: var(--atlas); }
+
+    pre.pipeline { background: transparent; border: none; border-radius: 0;
+      padding: 10px 12px; margin: 0; overflow: visible; font-size: 11.5px; line-height: 1.45;
+      color: var(--text); }
+    pre.pipeline .stage { color: var(--atlas); font-weight: 700; }
+    pre.pipeline .key   { color: var(--accent); }
+    pre.pipeline .val   { color: var(--text); }
+    pre.pipeline .str   { color: var(--accent-2); }
+    pre.pipeline .num   { color: var(--warn); }
+    pre.pipeline .com   { color: var(--muted); font-style: italic; }
+
+    .glue-steps { list-style: none; counter-reset: step; padding: 0; margin: 0 0 10px 0; }
+    .glue-steps li { counter-increment: step; padding: 10px 12px 10px 44px; position: relative;
+      margin-bottom: 8px; background: #1c0e16; border: 1px solid rgba(255,159,170,.25);
+      border-radius: 8px; color: var(--text); font-size: 13px; line-height: 1.45; }
+    .glue-steps li::before { content: counter(step); position: absolute; left: 12px; top: 10px;
+      width: 22px; height: 22px; border-radius: 50%; background: rgba(255,159,170,.18);
+      color: var(--glue); font-weight: 700; font-size: 12px; display: grid; place-items: center; }
+    .glue-steps li code { color: var(--glue); }
+    .glue-steps li .timing { float: right; color: var(--muted); font-size: 11px; }
+
+    /* ---------- result rows ---------- */
+    .hit-list { list-style: none; padding: 0; margin: 0; }
+    .hit { display: grid; grid-template-columns: 32px 1fr auto; gap: 8px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .hit:last-child { border-bottom: none; }
+    .hit.fill { opacity: 0.45; }
+    .hit.fill .plot mark { background: transparent; color: var(--muted); }
+    .hit .rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .hit .body { min-width: 0; }
+    .hit .title-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .hit .id { color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px;
+      padding: 1px 6px; background: var(--panel-2); border-radius: 4px; }
+    .hit .title { font-weight: 600; }
+    .hit .plot { color: var(--muted); font-size: 13px; margin-top: 3px; line-height: 1.45; }
+    .hit .plot mark { background: rgba(247,192,116,.22); color: var(--warn);
+      padding: 0 2px; border-radius: 3px; }
+    .hit .meta { color: var(--muted); font-size: 11px; margin-top: 4px; display: flex;
+      gap: 8px; flex-wrap: wrap; align-items: center; }
+    .hit .meta .chip { background: var(--panel-2); border: 1px solid var(--border);
+      padding: 1px 6px; border-radius: 999px; }
+    .hit .meta .review { color: var(--text); }
+    .hit .meta .review .stars { color: var(--warn); }
+    .hit .score { color: var(--text); font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; }
+    .hit .score small { color: var(--muted); display: block; text-align: right; font-size: 11px; }
+
+    .tag { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+      border: 1px solid var(--border); background: var(--panel-2); }
+    .tag.match { color: var(--bm25); border-color: rgba(247,192,116,.45); }
+    .tag.fill  { color: var(--muted); }
+    .tag.atlas { color: var(--atlas); border-color: rgba(0,237,100,.45); }
+    .tag.glue  { color: var(--glue);  border-color: rgba(255,159,170,.45); }
+
+    .src { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
+      border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: var(--panel-2); border: 1px solid var(--border); }
+    .src.bm25  { color: var(--bm25);  border-color: rgba(247,192,116,.45); }
+    .src.vec   { color: var(--vec);   border-color: rgba(122,162,255,.45); }
+    .src.lvec  { color: var(--lvec);  border-color: rgba(199,155,255,.45); }
+    .src.both  { color: var(--both);  border-color: rgba(123,224,194,.55); }
+    .src.atlas { color: var(--atlas); border-color: rgba(0,237,100,.45); }
+    .src.glue  { color: var(--glue);  border-color: rgba(255,159,170,.45); }
+
+    /* ---------- summary banner under composable demo ---------- */
+    .summary { background: rgba(0,237,100,.06); border: 1px solid rgba(0,237,100,.28);
+      color: var(--text); border-radius: 10px; padding: 14px 16px; font-size: 13px;
+      margin-top: 14px; display: grid; gap: 8px; }
+    .summary strong { color: var(--atlas); }
+    .summary .scoreline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 880px) { .summary .scoreline { grid-template-columns: 1fr 1fr; } }
+    .summary .score { display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+      padding: 10px 12px; background: rgba(0,0,0,.18); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.04); }
+    .summary .score .lbl { color: var(--muted); font-size: 11px; letter-spacing: .15em;
+      text-transform: uppercase; }
+    .summary .score .vals { display: flex; gap: 8px; align-items: baseline; }
+    .summary .score .vals .a    { color: var(--atlas); font-weight: 700; font-size: 22px; }
+    .summary .score .vals .vs   { color: var(--muted); font-size: 12px; }
+    .summary .score .vals .g    { color: var(--glue);  font-weight: 700; font-size: 18px; }
+    .summary .moral { color: var(--muted); font-size: 12.5px; line-height: 1.5;
+      padding: 4px 4px 0 4px; border-top: 1px dashed rgba(255,255,255,.08); padding-top: 10px; }
+    .summary .moral strong { color: var(--text); }
+
+    /* ---------- five seams / architectural matrix ---------- */
+    .fiveq-section { margin-top: 28px; }
+    .fiveq-eyebrow { color: var(--atlas); font-size: 11px; letter-spacing: .25em;
+      text-transform: uppercase; margin: 0 0 6px 0; font-weight: 700; }
+    .fiveq-title { margin: 0 0 8px 0; font-size: 18px; }
+    .fiveq-lede { color: var(--muted); font-size: 13px; max-width: 940px;
+      margin: 0 0 16px 0; line-height: 1.5; }
+    .fiveq-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+    @media (max-width: 1100px) { .fiveq-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .fiveq-grid { grid-template-columns: 1fr; } }
+    .fq-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .fq-card .fq-num { color: var(--atlas); font-weight: 700; font-size: 11px; letter-spacing: .2em;
+      text-transform: uppercase; }
+    .fq-card .fq-q { color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.4; }
+    .fq-card .fq-pain { color: var(--glue); font-size: 11.5px; line-height: 1.45; }
+    .fq-card .fq-pain strong { color: var(--text); }
+    .fq-card .fq-mongo { background: rgba(0,237,100,.08); border: 1px solid rgba(0,237,100,.32);
+      border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 11.5px; line-height: 1.4;
+      margin-top: auto; }
+    .fq-card .fq-mongo .ck { color: var(--atlas); font-weight: 700; margin-right: 6px; }
+
+    /* "two layers the engine-equivalence panel doesn't cover" callout */
+    .stack-callout { margin-top: 18px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; display: grid; gap: 14px;
+      grid-template-columns: minmax(260px, 360px) 1fr; }
+    @media (max-width: 900px) { .stack-callout { grid-template-columns: 1fr; } }
+    .stack-callout h4 { margin: 0 0 4px 0; font-size: 13px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .2em; }
+    .stack-callout .stack-prose { color: var(--text); font-size: 12.5px; line-height: 1.55; }
+    .stack-callout .stack-prose strong { color: var(--text); }
+    .stack-callout .stack-prose em.glue  { color: var(--glue);  font-style: normal; font-weight: 700; }
+    .stack-callout .stack-prose em.atlas { color: var(--atlas); font-style: normal; font-weight: 700; }
+    .stack-diagram { display: flex; flex-direction: column; gap: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px; line-height: 1.35; }
+    .stack-diagram .row { padding: 7px 10px; border-radius: 6px; display: flex; flex-direction: column;
+      gap: 2px; border: 1px solid var(--border); }
+    .stack-diagram .row .lbl { color: var(--text); font-weight: 700; letter-spacing: .04em; }
+    .stack-diagram .row .desc { color: var(--muted); font-size: 10.5px; }
+    .stack-diagram .row.diff { background: rgba(255,159,170,.07); border-color: rgba(255,159,170,.36); }
+    .stack-diagram .row.diff .lbl { color: var(--glue); }
+    .stack-diagram .row.port { background: rgba(0,237,100,.05); border-color: rgba(0,237,100,.22); }
+    .stack-diagram .row.port .lbl { color: var(--atlas); }
+    .stack-diagram .row.integ { background: rgba(255,191,0,.05); border-color: rgba(255,191,0,.30); }
+
+    /* "this demo uses 2 of Atlas's surfaces" platform map */
+    .platform-map { margin-top: 28px; background:
+        radial-gradient(800px 200px at 5% -20%, rgba(0,237,100,.08), transparent 65%),
+        radial-gradient(600px 180px at 100% 0%, rgba(122,162,255,.08), transparent 65%),
+        var(--panel);
+      border: 1px solid rgba(0,237,100,.32); border-radius: 12px; padding: 22px 24px; }
+    .platform-map .pm-eyebrow { color: var(--atlas); font-size: 11px; letter-spacing: .25em;
+      text-transform: uppercase; margin: 0 0 8px 0; font-weight: 700; }
+    .platform-map .pm-title { margin: 0 0 8px 0; font-size: 19px; line-height: 1.3; color: var(--text); }
+    .platform-map .pm-title em { color: var(--atlas); font-style: normal; font-weight: 700; }
+    .platform-map .pm-lede { color: var(--muted); font-size: 13px; max-width: 980px;
+      margin: 0 0 18px 0; line-height: 1.5; }
+    .platform-map .pm-lede strong { color: var(--text); }
+    .pm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 14px 0; }
+    @media (max-width: 1100px) { .pm-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 760px)  { .pm-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 460px)  { .pm-grid { grid-template-columns: 1fr; } }
+    .pm-tile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-height: 78px;
+      transition: border-color .15s ease, transform .15s ease; }
+    .pm-tile:hover { border-color: rgba(0,237,100,.45); transform: translateY(-1px); }
+    .pm-tile.in-demo { border-color: rgba(0,237,100,.55); background:
+        linear-gradient(180deg, rgba(0,237,100,.06), rgba(0,237,100,.02));
+      box-shadow: 0 0 0 1px rgba(0,237,100,.06) inset; }
+    .pm-tile .pm-name { color: var(--text); font-weight: 700; font-size: 12.5px; line-height: 1.3; }
+    .pm-tile .pm-name code { font-size: 11px; color: var(--accent); background: rgba(122,162,255,.08);
+      padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+    .pm-tile .pm-replaces { color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .pm-tile .pm-replaces strong { color: var(--glue); font-weight: 600; }
+    .pm-tile .pm-tag { font-size: 9.5px; letter-spacing: .15em; text-transform: uppercase;
+      font-weight: 700; margin-top: auto; padding-top: 4px; }
+    .pm-tile.in-demo .pm-tag { color: var(--atlas); }
+    .pm-tile.unused .pm-tag { color: var(--muted); }
+    .platform-map .pm-footer { margin: 14px 0 0 0; padding: 14px 16px;
+      background: rgba(0,237,100,.06); border-left: 3px solid var(--atlas); border-radius: 6px;
+      color: var(--text); font-size: 13px; line-height: 1.55; }
+    .platform-map .pm-footer strong { color: var(--atlas); }
+    .platform-map .pm-footer .small { color: var(--muted); font-size: 12px; display: block; margin-top: 6px; }
+    .platform-map .pm-counters { display: flex; gap: 18px; margin: 0 0 12px 0; flex-wrap: wrap; }
+    .platform-map .pm-counter { background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 130px; }
+    .platform-map .pm-counter .n { color: var(--atlas); font-size: 22px; font-weight: 800; line-height: 1; }
+    .platform-map .pm-counter .lbl { color: var(--muted); font-size: 10.5px; letter-spacing: .15em;
+      text-transform: uppercase; font-weight: 600; }
+    .platform-map .pm-counter.glue .n { color: var(--glue); }
+    .stack-diagram .row.integ .lbl { color: var(--warn); }
+    .stack-diagram .scope-note { color: var(--muted); font-size: 10.5px; padding: 4px 0 0 4px;
+      font-family: inherit; }
+
+    /* competitive matrix table */
+    .matrix-wrap { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+    .matrix-wrap h4 { margin: 0 0 4px 0; font-size: 13px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .2em; }
+    .matrix-wrap .matrix-sub { color: var(--muted); font-size: 12px; margin: 0 0 10px 0; }
+    .matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .matrix th, .matrix td { padding: 8px 10px; text-align: left;
+      border-bottom: 1px solid var(--border); }
+    .matrix th { color: var(--muted); font-weight: 600; font-size: 11px;
+      letter-spacing: .12em; text-transform: uppercase; }
+    .matrix th.mid, .matrix td.mid { text-align: center; }
+    .matrix tr.atlas-row td { background: rgba(0,237,100,.06); }
+    .matrix tr.atlas-row .product { color: var(--atlas); font-weight: 700; }
+    .matrix .product { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .matrix .product small { color: var(--muted); font-weight: 400; display: block;
+      font-size: 10.5px; letter-spacing: 0; text-transform: none; margin-top: 2px; }
+    .matrix .ok    { color: var(--atlas); font-weight: 700; }
+    .matrix .meh   { color: var(--warn);  font-weight: 700; }
+    .matrix .no    { color: var(--glue);  font-weight: 700; }
+    .matrix-legend { color: var(--muted); font-size: 11.5px; margin-top: 10px;
+      display: flex; gap: 14px; flex-wrap: wrap; }
+    .matrix-legend span strong { color: var(--text); }
+
+    /* ---------- form (legacy supplementary) ---------- */
+    form.legacy { display: grid; grid-template-columns: 1fr 110px 100px; gap: 12px;
+      align-items: end; padding: 16px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; }
+    form.legacy.split { grid-template-columns: 1fr 1fr 110px 100px; }
+    form.legacy label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    form.legacy input, form.legacy button {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--panel-2); color: var(--text); font: inherit; }
+    form.legacy button { cursor: pointer; background: var(--accent); color: #0b1020; border: none; font-weight: 600; }
+    form.legacy button:hover { filter: brightness(1.05); }
+    .form-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; color: var(--muted);
+      font-size: 13px; flex-wrap: wrap; }
+    .form-row label { color: inherit; cursor: pointer; }
+    .examples { display: flex; flex-wrap: wrap; gap: 6px; }
+    .examples button { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; width: auto; }
+    .examples button:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ---------- engine equivalence (legacy / supporting) ---------- */
+    .agree-banner { background: rgba(123,224,194,.08); border: 1px solid rgba(123,224,194,.35);
+      color: var(--both); border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 14px;
+      display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .agree-banner.warn { background: rgba(247,192,116,.06); border-color: rgba(247,192,116,.35); color: var(--warn); }
+    .agree-banner .verdict { font-size: 22px; line-height: 1; }
+    .agree-banner .metric { color: var(--text); }
+    .agree-banner .metric strong { color: inherit; }
+    .agree-banner code { color: inherit; }
+
+    .breakdown { color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .breakdown .ctrb { color: var(--text); }
+    .breakdown .ctrb.bm25 { color: var(--bm25); }
+    .breakdown .ctrb.vec  { color: var(--vec); }
+
+    /* ---------- collapsible <details> ---------- */
+    details.supp { margin-top: 22px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0 16px; }
+    details.supp summary { padding: 14px 0; cursor: pointer; list-style: none;
+      display: flex; align-items: center; gap: 10px; color: var(--muted);
+      font-size: 13px; letter-spacing: .2px; text-transform: uppercase; }
+    details.supp summary::-webkit-details-marker { display: none; }
+    details.supp summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+    details.supp[open] summary::before { transform: rotate(90deg); display: inline-block; }
+    details.supp summary .label { color: var(--text); text-transform: none; letter-spacing: 0;
+      font-weight: 600; }
+    details.supp summary .hint  { color: var(--muted); text-transform: none; letter-spacing: 0;
+      font-weight: 400; }
+    details.supp > .supp-body { padding: 6px 0 18px 0; border-top: 1px solid var(--border); }
+    details.supp .supp-intro { color: var(--muted); font-size: 13px; margin: 14px 0 6px 0; }
+    details.supp .supp-intro strong { color: var(--text); }
+    details.supp .grid { margin-top: 12px; }
+
+    footer { color: var(--muted); font-size: 12px; padding: 24px 32px; text-align: center; }
+    footer code { color: var(--accent-2); }
+
+    .err-box { background: rgba(255,122,122,.08); border: 1px solid rgba(255,122,122,.4);
+      padding: 10px 12px; border-radius: 8px; color: var(--err); margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>mdb-lucene</h1>
+    <span class="muted"><strong style="color: var(--atlas); font-weight: 700;">absorb complexity into the platform · build convenience into the query language</strong> &nbsp; <span style="opacity:.55;">— a strategy MongoDB has been running, one capability at a time, since 2009</span></span>
+    <span style="flex:1"></span>
+    <span class="pill {{ 'ok' if ready else 'err' }}">{{ 'ready' if ready else 'not ready' }}</span>
+    <span class="pill">movies: {{ indexed }}</span>
+    <span class="pill">reviews: {{ reviews_indexed or 0 }}</span>
+    <span class="pill">embed dim: {{ embed_dim or '—' }}</span>
+  </header>
+
+  <main>
+    {% if seed_error %}
+      <div class="err-box"><strong>seed error:</strong> {{ seed_error }}</div>
+    {% endif %}
+
+    <!-- ============================ HERO ============================ -->
+    <section class="hero">
+      <p class="eyebrow"><span style="color: var(--atlas);">the macro-strategy</span> <span style="opacity: .55;">— in one sentence</span></p>
+      <h2>
+        It isn't <strike>fastest vector retrieval</strike>.<br/>
+        It isn't even <strike>the database that added vectors to its query language</strike>.<br/>
+        It's that <span class="accent">MongoDB Atlas absorbs complexity into the platform</span><br/>
+        and <span class="accent">builds convenience into the query language</span> —
+        and has been doing it, one capability at a time, since 2009.
+        <span style="display:block; margin-top: 14px; font-size: 16px; font-weight: 500; color: var(--muted); line-height: 1.5;">
+          That's the strategy. <strong style="color: var(--text);">Vector search is one expression of it.</strong> So is everything else the platform has absorbed in the last fifteen years —
+          geospatial, graph traversal, ACID across shards, change streams, time-series, full-text search, queryable encryption,
+          stream processing, hybrid retrieval, in-database embeddings + reranking. <em>Every wave the industry framed as "you'll need a separate database for this" got the same answer:</em>
+          <strong style="color: var(--text);">extend the query layer. Never rebuild the foundation. Make the database you already have smarter.</strong>
+          That's why <span style="color: var(--atlas); font-weight: 700;">/beyond-the-vector-database</span> is the only contest left —
+          the engine inside <code>$vectorSearch</code> is commodity (panel 2 below proves it),
+          and the only thing left to differentiate on is the strategy that brought vector search
+          into the same place as everything else.
+        </span>
+      </h2>
+      <div style="margin: 18px 0 0 0; padding: 14px 18px; background: rgba(0,237,100,.06); border-left: 3px solid var(--atlas); border-radius: 6px;">
+        <p style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); font-weight: 600;">
+          <span style="color: var(--atlas);">Lucene proves the vector engine is commodity</span>
+          <span style="color: var(--muted); font-weight: 400;">  →  <em>therefore</em>  →</span>
+          <span style="color: var(--atlas);">the only game left is what the database absorbs <span style="text-decoration: underline; text-decoration-color: var(--atlas); text-decoration-thickness: 2px;">beyond</span> the engine.</span>
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--muted); font-style: italic;">
+          Premise on the left = panel 2 below (engine equivalence, four decimal places).
+          Conclusion on the right = panel 1 below (the composable pipeline).
+          The arrow in the middle is the entire post.
+        </p>
+        <p style="margin: 12px 0 0 0; font-size: 12.5px; color: var(--text); line-height: 1.55; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.10);">
+          <strong style="color: var(--atlas);">An analogy.</strong>
+          The competing data layer has been bolting JSONB columns, "relational duality views," vector indexes,
+          and stream connectors onto a relational engine designed in the 1970s. Engineering marvels, all of them.
+          <em style="color: var(--text);">But putting an electric motor in a 1980s station wagon doesn't make it a Tesla.</em>
+          The document model wasn't a feature retrofitted onto a relational engine — it <strong>was</strong> the engine,
+          and every absorption since 2009 was an extension of the <em>same</em> engine, not a graft onto a different one.
+          That's why the strategy compounds. <span style="color: var(--muted);">(Borrowed, with admiration, from
+          <a href="https://demos.oblivio-company.com/why-mongodb/" target="_blank" rel="noopener" style="color: var(--atlas);">The Shape of Memory · Chapter I</a>.)</span>
+        </p>
+      </div>
+
+      <!-- ============================ THE READER CONTRACT — quiet, signature, once ============================ -->
+      <aside class="reader-contract" aria-label="How this page treats you">
+        <p class="rc-label">how to read this page</p>
+        <p class="rc-quote">
+          <span class="rc-quotemark" aria-hidden="true">"</span>This page treats <span class="rc-accent">the developer not as a consumer to be sold to,
+          but as an architect trying to prevent their AI infrastructure from collapsing into a pile of duct-taped microservices.</span><span class="rc-quotemark" aria-hidden="true">"</span>
+        </p>
+        <p class="rc-meta">
+          What follows isn't a vendor scorecard. It's a runnable laptop demo, a timeline of fifteen years of absorptions,
+          a platform map with sixteen tiles you can click, and an honest appendix about when a specialized vector database
+          actually <em>is</em> the right pick. The work it asks you to do is the work you were already doing in your head
+          when you opened your laptop today: sketching the data layer for a system you don't want to be paged about.
+        </p>
+      </aside>
+      <div class="walkthrough">
+        <p class="scene">
+          OK but <strong>what does any of this actually mean?</strong> Let's get concrete. Picture an actual AI agent.
+          A user types "<em>change my Tuesday flight to Thursday</em>." Behind the scenes, five things have to happen,
+          in roughly this order:
+        </p>
+        <ol class="steps">
+          <li>
+            <span class="what">Look up your booking.</span>
+            <span class="nerd">— a normal database query against the airline's records ("find the booking for user X on Tuesday")</span>
+          </li>
+          <li>
+            <span class="what">Read what's been said in this chat so far.</span>
+            <span class="nerd">— the agent didn't start fresh; it has the conversation up to now ("you said Tuesday, you want Thursday, you mentioned a window seat")</span>
+          </li>
+          <li class="vector">
+            <span class="what">Look up the airline's reschedule policy.</span><span class="vec-pill">vector search</span>
+            <span class="nerd">— phrased semantically: "rescheduling rules" should match a doc titled "Change Fee Schedule." <strong>This</strong> is the step the term "vector database" was named for.</span>
+          </li>
+          <li>
+            <span class="what">Recall what you usually prefer.</span>
+            <span class="nerd">— you always pick aisle seats, you hate red-eyes, you're flexible on dates but not on departure airports</span>
+          </li>
+          <li>
+            <span class="what">Check what worked last time.</span>
+            <span class="nerd">— last time the agent rescheduled a flight, did the airline's API actually accept the request, or did it 500?</span>
+          </li>
+        </ol>
+        <p class="punchline">
+          A "<strong>vector database</strong>" handles <em class="atlas">step 3</em>. <strong>That's it. One out of five.</strong>
+          The other four steps live in completely different systems — a Postgres for step 1, a Redis for step 2,
+          a DynamoDB for step 4, a ClickHouse for step 5 — or they live in your <em class="glue">application code</em>
+          held together with HTTP calls and prayers, plus a CDC pipeline keeping all of them in sync.
+          <br><br>
+          An "<strong>agentic database</strong>" is shorthand for <em class="atlas">"the document model + the aggregation
+          framework — the same one that absorbed geo, graph, time-series, full-text, vector, stream processing, and
+          encrypted-yet-searchable BSON, one capability at a time — applied to all five of those state types at once."</em>
+          That's MongoDB Atlas. <strong>And the five-types story is the smallest version of the real story.</strong>
+          The real story is the strategy that brought all five types into the same framework:
+          <em class="atlas">absorb complexity into the platform, build convenience into the query language, never rebuild the foundation.</em>
+          (The full version of that strategy, on a timeline, is in the unbroken-thread panel directly below.)
+        </p>
+        <p class="metaphor">
+          <strong>A vector database is to an agentic database what an engine is to a car.</strong>
+          The engine is critical. It's where the horsepower lives. It's expensive. It also doesn't have wheels,
+          seats, brakes, AC, headlights, or a steering wheel. <em>You can't drive an engine. You drive the car.</em>
+          When you ship an AI agent, you're shipping a car. The vector store is the engine.
+        </p>
+      </div>
+
+      <!-- ============================ THE 5+1 MQL FOLD ============================ -->
+      <details class="mql-fold">
+        <summary>
+          <span>show me the MQL — the same five steps, then the punchline</span>
+          <span class="mql-badge">5 queries → 1 pipeline</span>
+        </summary>
+        <div class="mql-body">
+          <p style="margin: 12px 0 4px 0; color: var(--text); font-size: 12.5px; line-height: 1.55;">
+            Each step on its own first — they look like the boring everyday queries any application developer would
+            write. <strong style="color:var(--atlas);">Then watch what happens at the bottom</strong> when the same
+            five steps become five stages of one aggregation pipeline.
+          </p>
+
+          <div class="mql-step">
+            <p class="mql-step-h"><span class="mql-num">1</span>"Look up your booking." <span class="mql-tag">— operational record · <code>findOne</code></span></p>
+<pre class="mql"><span class="kw">db</span>.<span class="kw">bookings</span>.<span class="op">findOne</span>({
+  user_id:  <span class="str">"u_8421"</span>,
+  depart_at: { <span class="op">$gte</span>: ISODate(<span class="str">"2026-05-19"</span>),
+               <span class="op">$lt</span>:  ISODate(<span class="str">"2026-05-20"</span>) }
+})
+<span class="com">// → { _id: "BK-7724", flight_no: "AA1132", seat: "27A",</span>
+<span class="com">//     fare_class: "Q", origin: "JFK", destination: "SFO" }</span></pre>
+          </div>
+
+          <div class="mql-step">
+            <p class="mql-step-h"><span class="mql-num">2</span>"Read what's been said in this chat so far." <span class="mql-tag">— session state · scoped <code>find</code> + <code>sort</code></span></p>
+<pre class="mql"><span class="kw">db</span>.<span class="kw">chats</span>.<span class="op">find</span>(
+  { session_id: <span class="str">"sess_3f9c"</span>, user_id: <span class="str">"u_8421"</span> }
+).<span class="op">sort</span>({ ts: <span class="num">1</span> })
+<span class="com">// → [</span>
+<span class="com">//     { role: "user",  text: "change my Tuesday flight to Thursday" },</span>
+<span class="com">//     { role: "agent", text: "Got it — same time of day OK?" },</span>
+<span class="com">//     { role: "user",  text: "yes, and window if you can" }</span>
+<span class="com">//   ]</span></pre>
+          </div>
+
+          <div class="mql-step">
+            <p class="mql-step-h vector"><span class="mql-num">3</span>"Look up the airline's reschedule policy." <span class="mql-tag">— vector recall · <code>$vectorSearch</code> with pre-filter pushdown</span></p>
+<pre class="mql"><span class="kw">db</span>.<span class="kw">policies</span>.<span class="op">aggregate</span>([
+  { <span class="op">$vectorSearch</span>: {
+      index:       <span class="str">"policy_index"</span>,
+      path:        <span class="str">"embedding"</span>,
+      queryVector: <span class="op">embed</span>(<span class="str">"rescheduling rules"</span>),
+      filter:      { airline: <span class="str">"AA"</span> },   <span class="com">// pushed INTO HNSW, not after</span>
+      limit:       <span class="num">3</span>
+  }},
+  { <span class="op">$project</span>: { title: <span class="num">1</span>, body: <span class="num">1</span>,
+                _score: { <span class="op">$meta</span>: <span class="str">"vectorSearchScore"</span> } }}
+])
+<span class="com">// → [</span>
+<span class="com">//     { title: "Change Fee Schedule",          _score: 0.84 },</span>
+<span class="com">//     { title: "Same-Day Confirmation Policy", _score: 0.71 }</span>
+<span class="com">//   ]</span></pre>
+          </div>
+
+          <div class="mql-step">
+            <p class="mql-step-h"><span class="mql-num">4</span>"Recall what you usually prefer." <span class="mql-tag">— long-term memory · <code>findOne</code> on the user's preferences</span></p>
+<pre class="mql"><span class="kw">db</span>.<span class="kw">user_memory</span>.<span class="op">findOne</span>(
+  { user_id: <span class="str">"u_8421"</span> },
+  { preferences: <span class="num">1</span> }
+)
+<span class="com">// → { preferences: {</span>
+<span class="com">//       seat:           "aisle",</span>
+<span class="com">//       avoid_red_eyes: true,</span>
+<span class="com">//       date_flexible:  true,</span>
+<span class="com">//       airports_strict: ["JFK", "LGA"]   // never EWR</span>
+<span class="com">//   }}</span></pre>
+          </div>
+
+          <div class="mql-step">
+            <p class="mql-step-h"><span class="mql-num">5</span>"Check what worked last time." <span class="mql-tag">— tool traces · time-series collection · most-recent successful call</span></p>
+<pre class="mql"><span class="kw">db</span>.<span class="kw">tool_traces</span>.<span class="op">find</span>({
+  user_id: <span class="str">"u_8421"</span>,
+  tool:    <span class="str">"airline_reschedule_api"</span>,
+  ts:      { <span class="op">$gte</span>: ISODate(<span class="str">"2026-04-01"</span>) }
+}).<span class="op">sort</span>({ ts: <span class="num">-1</span> }).<span class="op">limit</span>(<span class="num">1</span>)
+<span class="com">// → { ts: ISODate("2026-04-12T14:22Z"),</span>
+<span class="com">//     tool: "airline_reschedule_api",</span>
+<span class="com">//     status: 200, latency_ms: 1840,</span>
+<span class="com">//     response: { confirmation: "AA-2104" } }</span></pre>
+          </div>
+
+          <div class="mql-divider">
+            the punchline
+            <span class="mql-divider-sub">— the same five steps, composed into one pipeline, in one round trip</span>
+          </div>
+
+<pre class="mql" style="margin-top: 10px;"><span class="com">// One agent turn. One aggregation pipeline. One round trip.</span>
+<span class="kw">db</span>.<span class="kw">bookings</span>.<span class="op">aggregate</span>([
+
+  <span class="com">// Step 1 — operational record (the seed for everything else)</span>
+  { <span class="op">$match</span>: {
+      user_id:  <span class="str">"u_8421"</span>,
+      depart_at: { <span class="op">$gte</span>: ISODate(<span class="str">"2026-05-19"</span>),
+                   <span class="op">$lt</span>:  ISODate(<span class="str">"2026-05-20"</span>) }
+  }},
+
+  <span class="com">// Step 4 — long-term memory, joined onto the user</span>
+  { <span class="op">$lookup</span>: {
+      from: <span class="str">"user_memory"</span>, localField: <span class="str">"user_id"</span>,
+      foreignField: <span class="str">"user_id"</span>, as: <span class="str">"memory"</span>
+  }},
+
+  <span class="com">// Step 2 — session/chat state, ordered, scoped to this session</span>
+  { <span class="op">$lookup</span>: {
+      from: <span class="str">"chats"</span>,
+      let:  { uid: <span class="str">"$user_id"</span> },
+      pipeline: [
+        { <span class="op">$match</span>: { <span class="op">$expr</span>: { <span class="op">$and</span>: [
+            { <span class="op">$eq</span>: [<span class="str">"$user_id"</span>,    <span class="str">"$$uid"</span>] },
+            { <span class="op">$eq</span>: [<span class="str">"$session_id"</span>, <span class="str">"sess_3f9c"</span>] }
+        ]}}},
+        { <span class="op">$sort</span>: { ts: <span class="num">1</span> } }
+      ],
+      as: <span class="str">"chat"</span>
+  }},
+
+  <span class="com">// Step 3 — vector recall over the policy corpus, pre-filter pushed INTO HNSW</span>
+  { <span class="op">$lookup</span>: {
+      from: <span class="str">"policies"</span>,
+      pipeline: [
+        { <span class="op">$vectorSearch</span>: {
+            index:       <span class="str">"policy_index"</span>,
+            path:        <span class="str">"embedding"</span>,
+            queryVector: <span class="op">embed</span>(<span class="str">"rescheduling rules"</span>),
+            filter:      { airline: <span class="str">"AA"</span> },
+            limit:       <span class="num">3</span>
+        }},
+        { <span class="op">$project</span>: { title: <span class="num">1</span>, body: <span class="num">1</span> } }
+      ],
+      as: <span class="str">"policy"</span>
+  }},
+
+  <span class="com">// Step 5 — most recent successful call to this tool for this user (time-series)</span>
+  { <span class="op">$lookup</span>: {
+      from: <span class="str">"tool_traces"</span>,
+      let:  { uid: <span class="str">"$user_id"</span> },
+      pipeline: [
+        { <span class="op">$match</span>: { <span class="op">$expr</span>: { <span class="op">$eq</span>: [<span class="str">"$user_id"</span>, <span class="str">"$$uid"</span>] },
+                    tool: <span class="str">"airline_reschedule_api"</span>,
+                    ts:   { <span class="op">$gte</span>: ISODate(<span class="str">"2026-04-01"</span>) } }},
+        { <span class="op">$sort</span>:  { ts: <span class="num">-1</span> } },
+        { <span class="op">$limit</span>: <span class="num">1</span> }
+      ],
+      as: <span class="str">"last_attempt"</span>
+  }},
+
+  <span class="com">// Final shape — exactly what the agent's reasoning step needs as input.</span>
+  { <span class="op">$project</span>: {
+      booking:      { _id: <span class="str">"$_id"</span>, flight_no: <span class="str">"$flight_no"</span>,
+                      seat: <span class="str">"$seat"</span>, origin: <span class="str">"$origin"</span>,
+                      destination: <span class="str">"$destination"</span> },
+      memory:       { <span class="op">$first</span>: <span class="str">"$memory"</span> },
+      chat:         <span class="num">1</span>,
+      policy:       <span class="num">1</span>,
+      last_attempt: { <span class="op">$first</span>: <span class="str">"$last_attempt"</span> }
+  }}
+
+])
+<span class="com">// → ONE document containing operational + memory + chat + policy + traces.</span>
+<span class="com">//   ONE round trip. ONE query language. ONE ops surface. ONE auth model.</span>
+<span class="com">//   ONE backup. ONE SOC2 audit. ONE on-call rotation.</span></pre>
+
+          <p class="mql-after">
+            That's it. <strong>$match + four $lookups + a $project</strong> — operators that have existed in MongoDB
+            since long before "AI agent" was a job title. The <code>$vectorSearch</code> stage is one of the four
+            lookups. It sits between the chat-history lookup and the tool-trace lookup, with the same syntax the other
+            lookups use, against the same database. <em>That</em> is what "vectors are chapter 6, not chapter 1"
+            looks like in code. Vector recall is a stage. The aggregation framework already knew how to do four other
+            kinds of stages; it now also knows how to do this one; it composes them all without you needing to write
+            any glue.
+          </p>
+
+          <p class="mql-after">
+            Now picture the same five steps in a split-store architecture: a relational call, a cache call,
+            a pure-vector recall call, another operational call, an observability call — <strong>five surfaces, five auth models, five SLAs,
+            five places drift can show up</strong>, plus a sync path keeping semantic recall aligned with the booking row every time the airline's
+            policy team updates a doc. The agentic-database argument is the difference between those two pictures.
+            It's not <em>"whose raw top-K wins a micro-benchmark."</em> It's
+            <strong>"the second picture is one query and the first picture is a project."</strong>
+          </p>
+
+          <p class="mql-after" style="font-size: 12px; color: var(--muted); padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.08);">
+            The composable-pipeline panel further down on this page is the same shape against simpler data
+            (movies + reviews) that you can run on your laptop in real time, with a "raw Lucene + glue" column
+            next to it that quantifies the cost of the alternative. Every line of MQL above is a stage in the
+            same aggregation framework that absorbed geo, graph, time-series, full-text, vector, stream processing,
+            and queryable encryption — one capability at a time. <em>This block is the macro-strategy expressed in
+            twenty-five lines of query.</em>
+          </p>
+        </div>
+      </details>
+
+      <p class="lede">
+        Below is the formal version of "the five things" the walkthrough just illustrated. Same content, slightly more
+        technical wording — so you can map them to the systems you already run.
+      </p>
+
+      <div class="pillars">
+        <div class="pillar">
+          <div class="num">01 · operational data</div>
+          <h4>"Look up your booking" — boring rows-and-columns</h4>
+          <p>Orders, users, products, tickets, inventory. The OLTP records the agent has to be consistent with — and write back to in the same transaction.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">02 · vector recall</div>
+          <h4>"Look up the policy" — semantic search</h4>
+          <p>The thing "vector database" was named for. <code>$vectorSearch</code> on a field of the document. Filter pushed into HNSW (pre-filter, not post-filter). Composes with <code>$lookup</code>, <code>$rankFusion</code>, the rest of the pipeline.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">03 · session state</div>
+          <h4>"Read this chat so far" — short-term memory</h4>
+          <p>Conversation history, current task, in-progress tool plans. Constantly read, constantly appended to, filtered by <code>session_id</code>. Often <em>also</em> embedded for "did we already talk about this?"</p>
+        </div>
+        <div class="pillar">
+          <div class="num">04 · long-term memory</div>
+          <h4>"What you usually prefer" — the agent's notes on you</h4>
+          <p>User preferences, recurring topics, prior decisions. Hybrid of structured fields and free-text + embeddings, scoped per-tenant via filter pushdown.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">05 · tool traces</div>
+          <h4>"What worked last time" — observability + replay</h4>
+          <p>Every tool call the agent made, with args and result. Time-series. Queryable by run-id <em>or</em> by semantic similarity. Just another collection — with its own embedding column.</p>
+        </div>
+      </div>
+
+      <p class="lede" style="margin: 18px 0 0 0;">
+        <strong>One last thing before the demo:</strong> the retrieval engine itself is <strong>portable</strong> —
+        Atlas <code>$vectorSearch</code> is Lucene HNSW under the hood — the same library family that powers most Lucene-backed search stacks —
+        and agrees to within noise with other mature HNSW implementations for the same vectors. The engine-equivalence panel
+        further down proves it to four decimals. So the "<em>fastest top-K</em>" benchmark people obsess over is
+        comparing engines that <em>agree on the answer</em>. The contest worth having is the one above — the five-step,
+        one-database-or-many question. The composable-pipeline panel below is what step 3 looks like <em>composed
+        with steps 1, 4, and 5</em> in one query, vs. what it costs as separate round trips and glue.
+      </p>
+
+      <p style="margin: 16px 0 0 0; padding: 12px 14px; background: rgba(255,159,170,.06);
+                border: 1px solid rgba(255,159,170,.28); border-radius: 8px;
+                color: var(--text); font-size: 13px; line-height: 1.55;">
+        <strong style="color: var(--glue);">Two questions before you scroll:</strong>
+        <em>(1)</em> open your last AI-platform incident postmortem &mdash; how many distinct systems were
+        involved, and how many would have been <em>one</em> if your data layer was actually one database?
+        <em>(2)</em> open your last AI-platform invoice and add the line items: vector store + OLTP +
+        chat memory + observability + the engineer-fortnights you've spent maintaining the CDC pipeline.
+        Hold both numbers in your head while the demo loads. We're going to make them load-bearing.
+      </p>
+    </section>
+
+    <!-- ============================ THE UNBROKEN THREAD · the macro-strategy on a timeline ============================ -->
+    <section class="thread">
+      <p class="eyebrow"><span style="color: var(--atlas);">the macro-strategy on a timeline</span> &nbsp;·&nbsp; <span style="opacity: .65;">click any node for the absorption story</span></p>
+      <h3>Step back from "vector search" for a minute.<br><em>Vector search is one expression of a strategy MongoDB has been running, one capability at a time, since 2009.</em></h3>
+
+      <p class="lead">
+        The walkthrough above frames MongoDB as <em>"a database that holds all five state types an agent needs."</em>
+        That's true — but it's a single frame from a much longer film. The longer film is the one
+        <a href="https://demos.oblivio-company.com/why-mongodb/" target="_blank" rel="noopener" style="color: var(--atlas);"><em>The Shape of Memory</em></a>
+        narrates in five chapters: <em>every</em> "you'll need a separate database for that" wave the industry has named in the last fifteen years got the same answer from the same team — <strong style="color: var(--atlas);">extend the query layer; never rebuild the foundation; make the database you already have smarter.</strong>
+      </p>
+
+      <!-- ============================ THE OPERATIONAL FORM OF THE MACRO-STRATEGY ============================ -->
+      <aside class="strategy-refrain" aria-label="The operational form of the macro-strategy">
+        <p class="sr-eyebrow">the strategy as a single recurring engineering decision</p>
+        <blockquote class="sr-quote">
+          <span class="sr-quotemark" aria-hidden="true">"</span>This new data shape is just JSON.<br>
+          Let's <span class="sr-accent">extend the aggregation framework</span> to understand it natively.<span class="sr-quotemark" aria-hidden="true">"</span>
+        </blockquote>
+        <p class="sr-decode">
+          That's it. That's the move. Sixteen years of database history compressed into one decision, made over and over again at the right time:
+        </p>
+        <ul class="sr-list">
+          <li><span class="sr-shape">Coordinates</span> are nested arrays &nbsp;→&nbsp; <code>$geoNear</code></li>
+          <li><span class="sr-shape">Edges</span> are references &nbsp;→&nbsp; <code>$graphLookup</code></li>
+          <li><span class="sr-shape">Time-series readings</span> are timestamped objects &nbsp;→&nbsp; native time-series collections</li>
+          <li><span class="sr-shape">Inverted-index terms</span> are arrays of strings &nbsp;→&nbsp; <code>$search</code></li>
+          <li><span class="sr-shape">Embeddings</span> are arrays of floats &nbsp;→&nbsp; <code>$vectorSearch</code></li>
+          <li><span class="sr-shape">Encrypted fields</span> are opaque BSON &nbsp;→&nbsp; queryable encryption</li>
+          <li><span class="sr-shape">Stream events</span> are documents in motion &nbsp;→&nbsp; Atlas Stream Processing</li>
+        </ul>
+        <p class="sr-closer">
+          <strong>Same answer to the same question, sixteen years running.</strong> The timeline below is what that decision looks like as a calendar. <em>Click any node for the absorption story.</em>
+        </p>
+      </aside>
+
+      <p class="lead" style="margin-top: 18px;">
+        Here's that strategy on a timeline, redrawn so the demo below has somewhere to land. <em>Each node is a capability the platform absorbed. The thread connecting them is the strategy.</em>
+      </p>
+
+      <div class="thread-strip" aria-label="MongoDB capability timeline · click any node for the absorption story">
+        <div class="tnode foundation" tabindex="0" role="button"
+             title="2009 · document model — the foundation. Click for the story."
+             data-modal="document-model">
+          <span class="yr">2009</span>
+          <span class="what">document model</span>
+          <span class="why">JSON in code = JSON on disk</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2010 · $geoNear absorbs the spatial database. Click for the story."
+             data-modal="geo">
+          <span class="yr">2010</span>
+          <span class="what">geo · 2dsphere</span>
+          <span class="why">coords were just nested arrays</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2014 · WiredTiger absorbs ACID + document-level locking. Click for the story."
+             data-modal="wiredtiger">
+          <span class="yr">2014</span>
+          <span class="what">ACID · WiredTiger</span>
+          <span class="why">document-level locking</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2018 · $graphLookup absorbs the graph database. Click for the story."
+             data-modal="graphlookup">
+          <span class="yr">2018</span>
+          <span class="what">$graphLookup</span>
+          <span class="why">references already there</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2018 · change streams absorb CDC. Click for the story."
+             data-modal="change-streams">
+          <span class="yr">2018</span>
+          <span class="what">change streams</span>
+          <span class="why">oplog as event source</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2021 · time-series collections absorb Influx-class workloads. Click for the story."
+             data-modal="time-series">
+          <span class="yr">2021</span>
+          <span class="what">time-series</span>
+          <span class="why">timestamped docs · columnar</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2022 · $search absorbs Elasticsearch. Click for the story."
+             data-modal="search">
+          <span class="yr">2022</span>
+          <span class="what">$search · Lucene</span>
+          <span class="why">tails the oplog · no separate writer</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode vector" tabindex="0" role="button"
+             title="2023 · $vectorSearch absorbs the pure vector store. Click for the story."
+             data-modal="vector-search">
+          <span class="yr">2023</span>
+          <span class="what">$vectorSearch</span>
+          <span class="why">Lucene HNSW · same oplog tail</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2024 · queryable encryption absorbs decrypt-then-query. Click for the story."
+             data-modal="qe">
+          <span class="yr">2024</span>
+          <span class="what">queryable encryption</span>
+          <span class="why">encrypted-yet-searchable BSON</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2025 · Atlas Stream Processing absorbs Flink. Click for the story."
+             data-modal="asp">
+          <span class="yr">2025</span>
+          <span class="what">Atlas Stream Proc.</span>
+          <span class="why">aggregation on data in motion</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode" tabindex="0" role="button"
+             title="2026 · $rankFusion + $rerank absorb application-side hybrid retrieval. Click for the story."
+             data-modal="rankfusion">
+          <span class="yr">2026</span>
+          <span class="what">$rankFusion · $rerank</span>
+          <span class="why">hybrid + rerank as native stages</span>
+        </div>
+        <div class="tarrow">→</div>
+        <div class="tnode vector" tabindex="0" role="button"
+             title="2026 · Voyage AI + autoEmbed absorb the embedding API. Click for the story."
+             data-modal="voyage">
+          <span class="yr">2026</span>
+          <span class="what">autoEmbed · Voyage</span>
+          <span class="why">database vectorizes for you</span>
+        </div>
+      </div>
+
+      <p class="pattern">
+        Every node above was the same answer to the same question. <em>"You'll need a spatial database for that."</em> &nbsp;→&nbsp; <code>$geoNear</code>. <em>"You'll need a graph database for that."</em> &nbsp;→&nbsp; <code>$graphLookup</code>. <em>"You'll need a time-series database for that."</em> &nbsp;→&nbsp; native time-series collections. <em>"You'll need Elasticsearch for that."</em> &nbsp;→&nbsp; <code>$search</code>, with Lucene running <em>inside</em> the cluster, the index tailing the oplog. <em>"You'll need a vector database for that."</em> &nbsp;→&nbsp; <code>$vectorSearch</code>, on the same Lucene, on the same oplog tail, in the same aggregation framework. <em>"You'll need Flink for that."</em> &nbsp;→&nbsp; Atlas Stream Processing, the same pipeline language run continuously on data in motion. <em>"You'll need a separate embedding API for that."</em> &nbsp;→&nbsp; Voyage AI in the database, with <code>autoEmbed</code> as a field type. <strong style="color: var(--atlas);">Same answer. Same framework. Same model. Sixteen years of compounding.</strong> That's the macro-strategy: <em>absorb complexity into the platform; build convenience into the query language.</em> Vector search is the latest expression of it. Whatever the next data shape turns out to be — whatever wave you'll be told you need a separate database for in 2027 — will land in the same place, the same way. <em>Because every future data pattern still has to express nested structure, relationships, and evolving shape; and that's still native JSON.</em>
+      </p>
+
+      <div class="quote">
+        "An agent's memory isn't a flat vector — it's summaries, entity graphs, temporal context, embeddings, and
+        encrypted preferences, <strong>layered together</strong>. The document was always the natural shape for that
+        kind of structured richness. <strong>It didn't require a new architecture. It required the one that was
+        already there.</strong>"
+        <span style="display: block; margin-top: 8px; color: var(--muted); font-style: normal; font-size: 12px;">
+          — <a href="https://demos.oblivio-company.com/why-mongodb/" target="_blank" rel="noopener" style="color: var(--atlas);">The Shape of Memory</a> · Chapter VI · The Unbroken Thread
+        </span>
+      </div>
+
+      <p class="closer">
+        That paragraph is the closing line of the strategic essay. <strong>The demo on this page is what that line looks like rendered as a working pipeline.</strong> The "rescheduling your flight" walkthrough above isn't really about vector search. It's about <strong>a single aggregation pipeline reading from documents that happen to hold a vector column AND a session document AND an operational record AND a memory entry AND a tool-trace time-series</strong> — all of which are just JSON, all of which the aggregation framework already understands. The five state types compose in one query for the <em>same</em> reason geo + graph + time-series did a decade ago, and for the <em>same</em> reason whatever-comes-next will compose with them too: <strong>one foundation, one query language, one ops surface, one capability at a time.</strong> Vector recall is <em>one column</em>. The strategy that brought it there alongside everything else is the actual product.
+      </p>
+
+      <p class="cite">
+        <strong style="color: var(--text);">The strategic frame</strong> · <a href="https://demos.oblivio-company.com/why-mongodb/" target="_blank" rel="noopener">The Shape of Memory</a> — the macro-strategy in narrative form, in five chapters, no code.
+        <strong style="color: var(--text); margin-left: 12px;">The runnable proof</strong> · this page and the demo behind it — the macro-strategy expressed as one slice on your laptop, in two panels, all code.
+        <em>Both make the same argument from opposite ends of the stack. That's not a coincidence; that's the structure of an argument that's actually true.</em>
+      </p>
+    </section>
+
+    <!-- ============================ COMPOSABLE PIPELINE ============================ -->
+    <h3 style="margin: 8px 0 8px 0; font-size: 16px;">
+      <span style="color:var(--atlas);">▶</span> One step of agent reasoning, in one MongoDB pipeline — vs. four steps of glue
+    </h3>
+    <p class="muted" style="font-size: 13px; max-width: 940px; margin: 0 0 14px 0;">
+      Same query, same vectors. On the left: a single MongoDB aggregation pipeline that does
+      <code>$vectorSearch</code> with a <strong>filter pushed into the HNSW traversal</strong>, <code>$lookup</code>s a
+      sibling <code>reviews</code> collection, computes <code>avg_rating</code>, and projects the result the
+      caller wants. On the right: the <em>same workflow</em> against raw Lucene HNSW with a separate reviews
+      store — multiple round trips, app-side filtering, app-side joins, recall risk on the post-filter step.
+      <strong>This is what an agent's "vector recall + ground evidence + decide" step looks like in code.</strong>
+      The engine-equivalence panel below is irrelevant to this contest, because the engine is the same in both
+      columns — what changes is everything around it.
+    </p>
+
+    <!-- Honesty box: tells the reader exactly what to evaluate this panel on,
+         and what NOT to — the dataset is too small for raw-ms to be meaningful,
+         and the page would lose credibility if it pretended otherwise. -->
+    <aside style="margin: 0 0 14px 0; padding: 12px 14px; background: rgba(122,162,255,.05);
+                  border: 1px solid rgba(122,162,255,.28); border-radius: 8px;
+                  color: var(--text); font-size: 12.5px; line-height: 1.55;">
+      <strong style="color: var(--accent); font-size: 11px; letter-spacing: .15em; text-transform: uppercase;">
+        what this 20-doc demo can show
+      </strong>
+      <span style="color: var(--muted); margin-left: 8px;">vs. what it can't</span>
+      <p style="margin: 8px 0 0 0;">
+        <strong>Built to make three things obvious:</strong>
+        (1)&nbsp;the engine returns the same answer either way (engine equivalence — panel 2 proves it to four decimals),
+        (2)&nbsp;<em>one</em> pipeline composes more cleanly than four glue steps, and
+        (3)&nbsp;filter pushdown preserves recall on selective predicates (try the&nbsp;<code>fantasy</code> or&nbsp;<code>crime · avg ≥ 4</code> chips).
+      </p>
+      <p style="margin: 6px 0 0 0; color: var(--muted);">
+        <strong style="color: var(--text);">Deliberately <em>not</em> modelled here:</strong> production CDC cost,
+        auth/SOC2 surfaces, multi-tenant scoping at scale, or 10⁶+-vector latency. Those live in the
+        bill-of-materials and the architectural matrix below — not in the millisecond counter.
+        <em>If raw Lucene comes out a millisecond ahead on this dataset, that's the demo working as intended.</em>
+        On 20 docs in localhost the engine cost is roundoff; what scales with N agent steps is the
+        <strong style="color: var(--text);">round trips</strong>, the <strong style="color: var(--text);">query languages</strong>,
+        and the <strong style="color: var(--text);">sync pipelines you own</strong>.
+      </p>
+    </aside>
+
+    <form class="composable-form" id="composable-form" autocomplete="off">
+      <div>
+        <label for="cq">query (semantic)</label>
+        <input id="cq" name="q" value="astronauts grieving black hole" />
+      </div>
+      <div>
+        <label for="cgenre">genre =</label>
+        <select id="cgenre" name="genre">
+          <option value="">(any)</option>
+          <option value="scifi" selected>scifi</option>
+          <option value="thriller">thriller</option>
+          <option value="crime">crime</option>
+          <option value="drama">drama</option>
+          <option value="fantasy">fantasy</option>
+        </select>
+      </div>
+      <div>
+        <label for="cdecade">decade ≥</label>
+        <select id="cdecade" name="decade_gte">
+          <option value="">(any)</option>
+          <option value="2010">2010</option>
+          <option value="2020" selected>2020</option>
+        </select>
+      </div>
+      <div>
+        <label for="cincat">in_catalog =</label>
+        <select id="cincat" name="in_catalog">
+          <option value="true" selected>true</option>
+          <option value="">(any)</option>
+          <option value="false">false</option>
+        </select>
+      </div>
+      <div>
+        <label for="cmin">min avg_rating</label>
+        <input id="cmin" name="min_avg_rating" type="number" step="0.1" min="0" max="5" value="4" placeholder="(none)" />
+      </div>
+      <button type="submit">Run pipeline</button>
+    </form>
+
+    <div class="form-help">
+      <span class="muted">try:</span>
+      <span class="examples" id="composable-examples">
+        <button data-q="astronauts grieving black hole" data-genre="scifi" data-dec="2020">scifi · 2020s · grief in space</button>
+        <button data-q="thieves planning silent robbery" data-genre="crime" data-dec="" data-min="4">crime · avg ≥ 4</button>
+        <button data-q="ghost helps a journey across rapids" data-genre="fantasy" data-dec="">fantasy · any decade</button>
+        <button data-q="lonely keeper discovers signal" data-genre="" data-dec="2020">all genres · 2020s only</button>
+      </span>
+    </div>
+
+    <div id="composable-summary" class="summary" style="display:none"></div>
+
+    <div class="grid two">
+      <div class="card atlas">
+        <h2>
+          <span class="src atlas">One database</span>
+          one pipeline · one round trip · one sync
+          <span class="took" id="atlas-took"></span>
+        </h2>
+        <div class="sub" id="atlas-sub">— hit run pipeline —</div>
+
+        <!-- Always-visible: shape of the pipeline as chips. No scrolling required. -->
+        <div class="stage-chips" id="atlas-chips" aria-label="aggregation pipeline stages">
+          <span class="label">pipeline</span>
+          <span class="meta-suffix">— hit run to populate —</span>
+        </div>
+
+        <!-- On-demand: the full pipeline JSON, for the curious / skeptical. Collapsed after first run. -->
+        <details class="pipeline-fold" id="atlas-pipeline-fold">
+          <summary>
+            <span>view pipeline JSON</span>
+            <span class="badge" id="atlas-pipeline-meta">— —</span>
+          </summary>
+          <div class="pipeline-body">
+            <pre class="pipeline" id="atlas-pipeline"></pre>
+          </div>
+        </details>
+
+        <ol class="hit-list" id="atlas-list"></ol>
+      </div>
+      <div class="card glue">
+        <h2>
+          <span class="src glue">A split stack</span>
+          two clusters · two query languages · the CDC pipeline you don't see
+          <span class="took" id="glue-took"></span>
+        </h2>
+        <div class="sub" id="glue-sub">
+          Raw HNSW gives you neighbours. The filter, the join, the aggregate are all
+          <em>your</em> problem — and recall is too, because post-filtering throws away neighbours
+          you already paid to fetch.
+        </div>
+
+        <!-- Always-visible: shape of the workflow as chips. -->
+        <div class="stage-chips" id="glue-chips" aria-label="glue workflow steps">
+          <span class="label">workflow</span>
+          <span class="chip-stage glue">POST&nbsp;/vector</span>
+          <span class="arrow">→</span>
+          <span class="chip-stage glue">app-side&nbsp;filter</span>
+          <span class="arrow">→</span>
+          <span class="chip-stage glue">GET&nbsp;reviews</span>
+          <span class="arrow">→</span>
+          <span class="chip-stage glue">app-side&nbsp;group</span>
+          <span class="meta-suffix">+ a CDC pipeline you don't see</span>
+        </div>
+
+        <!-- On-demand: the step breakdown with timings. -->
+        <details class="pipeline-fold" id="glue-steps-fold">
+          <summary>
+            <span>view step-by-step breakdown</span>
+            <span class="badge" id="glue-steps-meta">— —</span>
+          </summary>
+          <div class="pipeline-body" style="max-height: none;">
+            <ol class="glue-steps" id="glue-steps" style="margin: 10px 12px;"></ol>
+          </div>
+        </details>
+
+        <ol class="hit-list" id="glue-list"></ol>
+      </div>
+    </div>
+
+    <!-- ============================ FIVE SEAMS + ARCHITECTURAL MATRIX ============================ -->
+    <section class="fiveq-section">
+      <p class="fiveq-eyebrow">architecture · the five seams in an agent's data layer</p>
+      <h3 class="fiveq-title">These aren't vendor traps — they're the places split stacks leak integration tax</h3>
+      <p class="fiveq-lede">
+        Each seam is a real engineering trade-off: a class of bug, an extra system, or a recurring cost that shows up
+        after the POC. Pressure-test your architecture against them. Most split-store shapes answer <em>yes</em> to one seam,
+        <em>partially</em> to a couple more, <em>no</em> to the rest. MongoDB Atlas is the shape that can answer <em>yes</em>
+        across all five — not because it's a "better vector database," but because it's built as <strong>one</strong> composable data layer.
+      </p>
+
+      <div class="fiveq-grid">
+        <div class="fq-card">
+          <span class="fq-num">Seam 1 · unified state</span>
+          <span class="fq-q">Can vector recall, operational records, session state, long-term memory, <em>and</em> tool-call traces all live in one database?</span>
+          <span class="fq-pain">If <strong>no</strong>: a CDC pipeline you maintain forever, plus N&minus;1 extra ops surfaces. <em>Whose on-call rotation is that?</em></span>
+          <span class="fq-mongo"><span class="ck">✓</span> Atlas: collections + time-series + change streams. All five live in one cluster.</span>
+        </div>
+        <div class="fq-card">
+          <span class="fq-num">Seam 2 · filter in the walk</span>
+          <span class="fq-q">Does the vector index push predicates <em>into</em> HNSW (pre-filter), not after the top-K returns (post-filter)?</span>
+          <span class="fq-pain">If <strong>no</strong>: on selective filters (per-tenant scoping, per-user ACLs), recall doesn't degrade — it <em>collapses</em>. Demo it on a 1%-selectivity predicate.</span>
+          <span class="fq-mongo"><span class="ck">✓</span> Atlas: <code>filter</code>-type fields in the vectorSearch index. The Atlas column above proves it.</span>
+        </div>
+        <div class="fq-card">
+          <span class="fq-num">Seam 3 · composition without an HTTP seam</span>
+          <span class="fq-q">Can I express vector recall + filter + join + <em>hybrid fusion</em> + <em>server-side rerank</em> + aggregate + project in <em>one</em> query, in <em>one</em> round trip — with the entire query processor on the same ops surface as the data it composes?</span>
+          <span class="fq-pain">If <strong>no</strong>: every agent turn pays for the round-trip count in latency and cost; orchestration lives in your app forever; <em>and</em> hybrid fusion + the reranker become two more moving parts with two more SLAs. The query processor is <strong>not</strong> portable between stacks.</span>
+          <span class="fq-mongo"><span class="ck">✓</span> Atlas: <code>$vectorSearch</code> + <code>$rankFusion</code> + <code>$rerank</code> + <code>$lookup</code> are stages of the <em>same</em> aggregation pipeline. The panel above shows it; the engine-eq panel below proves the kitchen is the same — only the front of house differs.</span>
+        </div>
+        <div class="fq-card">
+          <span class="fq-num">Seam 4 · freshness as a property</span>
+          <span class="fq-q">Does the search index stay fresh from the same writes that update the operational record — automatically, with no separate writer?</span>
+          <span class="fq-pain">If <strong>no</strong>: you own a CDC pipeline (resume tokens, dead-letter queues, replay tooling, monitoring, on-call). And every "stale answer for six hours" page starts with "the sync was lagging."</span>
+          <span class="fq-mongo"><span class="ck">✓</span> Atlas: <code>mongot</code> tails the oplog. Index freshness is a property of the system.</span>
+        </div>
+        <div class="fq-card">
+          <span class="fq-num">Seam 5 · embedding + rerank on the same surface</span>
+          <span class="fq-q">First-party embedding <em>and</em> reranker models — including <em>contextualized</em> chunk embeddings (global document context captured at embedding time, not bolted on with metadata-prepending hacks) and dimension/quantization knobs — on the same ops surface, billed by the same vendor?</span>
+          <span class="fq-pain">If <strong>no</strong>: the embedding step itself is a separate vendor with its own latency budget, SOC2, billing — <em>and</em> you've baked in a context-agnostic embedding architecture that the next generation of contextualized models will eventually force you to migrate off of, across all your separate systems at once.</span>
+          <span class="fq-mongo"><span class="ck">✓</span> Atlas: Voyage <code>voyage-3</code> / <code>voyage-3-large</code> / <code>voyage-context-3</code> embedders (Matryoshka 2048↔256, fp32↔int8↔binary) + <code>rerank-2</code> rerankers, in-database. <code>voyage-context-3 (binary, 512)</code> beats OpenAI v3-large <code>(float, 3072)</code> at <strong>0.5%</strong> of the storage cost.</span>
+        </div>
+      </div>
+
+      <div class="matrix-wrap">
+        <h4>How architectural shapes line up on the five things an agent needs</h4>
+        <p class="matrix-sub">Rows are <em>shapes</em>, not product names. Columns are the state types an agent reads on every turn. Cells are <em>does this shape hold this kind of data natively, in a way that composes with the rest?</em> Pencil this against your own workload.</p>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Architectural shape</th>
+              <th class="mid">Operational</th>
+              <th class="mid">Vector recall</th>
+              <th class="mid">Session state</th>
+              <th class="mid">Long-term memory</th>
+              <th class="mid">Tool traces</th>
+              <th class="mid">One-query compose?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="atlas-row">
+              <td class="product">MongoDB Atlas <small>agentic database</small></td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓ <small style="color:var(--muted)">time-series</small></td>
+              <td class="mid ok">✓ <small style="color:var(--muted)">aggregation</small></td>
+            </tr>
+            <tr>
+              <td class="product">Pure vector store <small>hosted ANN API</small></td>
+              <td class="mid no">✗</td>
+              <td class="mid ok">✓</td>
+              <td class="mid no">✗</td>
+              <td class="mid meh">~ <small style="color:var(--muted)">ad-hoc</small></td>
+              <td class="mid no">✗</td>
+              <td class="mid no">✗</td>
+            </tr>
+            <tr>
+              <td class="product">Pure vector store <small>self-managed tier</small></td>
+              <td class="mid no">✗</td>
+              <td class="mid ok">✓</td>
+              <td class="mid no">✗</td>
+              <td class="mid meh">~</td>
+              <td class="mid no">✗</td>
+              <td class="mid no">✗</td>
+            </tr>
+            <tr>
+              <td class="product">Relational + bolt-on vectors <small>OLTP + extension</small></td>
+              <td class="mid ok">✓</td>
+              <td class="mid meh">~ <small style="color:var(--muted)">basic HNSW; weaker filter</small></td>
+              <td class="mid ok">✓</td>
+              <td class="mid meh">~</td>
+              <td class="mid meh">~ <small style="color:var(--muted)">no native time-series</small></td>
+              <td class="mid meh">~ <small style="color:var(--muted)">SQL joins; limited hybrid</small></td>
+            </tr>
+            <tr>
+              <td class="product">Search engine + kNN <small>Lucene family · vectors as a field</small></td>
+              <td class="mid meh">~ <small style="color:var(--muted)">search-shaped, not OLTP</small></td>
+              <td class="mid ok">✓</td>
+              <td class="mid no">✗</td>
+              <td class="mid meh">~</td>
+              <td class="mid meh">~</td>
+              <td class="mid meh">~</td>
+            </tr>
+            <tr>
+              <td class="product">DIY: vector store + N other DBs <small>"best-of-breed" stack</small></td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid ok">✓</td>
+              <td class="mid no">✗ <small style="color:var(--muted)">round-trips + glue + CDC forever</small></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="matrix-legend">
+          <span><span class="ok"><strong>✓</strong></span> = native, first-class, composes with the rest</span>
+          <span><span class="meh"><strong>~</strong></span> = partial / shoehorned / weaker than the natively-shaped option</span>
+          <span><span class="no"><strong>✗</strong></span> = you'll need a separate system for this</span>
+        </div>
+        <p style="color: var(--muted); font-size: 12.5px; margin: 14px 0 0 0; line-height: 1.5;">
+          <strong style="color: var(--text);">Two honest reads of this table:</strong>
+          if you only need vector recall (a pure semantic-search feature with no agent reasoning around it),
+          a pure vector store is a perfectly fine product — your one-query column collapses to "<code>$vectorSearch</code>"
+          and there's nothing to integrate. <strong style="color: var(--text);">If you're shipping an actual agent,</strong>
+          every <span class="meh"><strong>~</strong></span> and <span class="no"><strong>✗</strong></span> in your chosen
+          row becomes a separate system you adopt, a separate failure mode you on-call for, and a separate vendor on
+          your procurement docket. <strong style="color: var(--text);">The "best-of-breed" row is the most expensive
+          thing in the table by a wide margin once you count the integration tax.</strong>
+        </p>
+      </div>
+
+      <div class="stack-callout">
+        <div>
+          <h4>The stack has six layers, not four</h4>
+          <div class="stack-diagram">
+            <div class="row diff">
+              <span class="lbl">L5 · query processor</span>
+              <span class="desc">$rankFusion · $rerank · $lookup · $facet — composable stages</span>
+            </div>
+            <div class="row integ">
+              <span class="lbl">L4 · database integration</span>
+              <span class="desc">freshness · multi-tenancy · txns · time-series · ops surface</span>
+            </div>
+            <div class="row port">
+              <span class="lbl">L3 · library</span>
+              <span class="desc">Lucene / FAISS / hnswlib · ~95-99% top-K agreement</span>
+            </div>
+            <div class="row port">
+              <span class="lbl">L2 · algorithm</span>
+              <span class="desc">HNSW · IVF · DiskANN · ScaNN — public papers</span>
+            </div>
+            <div class="row port">
+              <span class="lbl">L1 · math</span>
+              <span class="desc">cosine · dot · L2 — identical on any computer</span>
+            </div>
+            <div class="row diff">
+              <span class="lbl">L0 · data + embedding model</span>
+              <span class="desc">chunking · which model · voyage-context-3 · dim/quantization</span>
+            </div>
+          </div>
+          <p class="scope-note">↑ engine-equivalence panel below covers <em style="color:var(--atlas);">L1–L3 only</em>.<br>differentiation lives at <em style="color:var(--glue);">L0</em> and <em style="color:var(--glue);">L5</em>.</p>
+        </div>
+        <div class="stack-prose">
+          <h4 style="font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .2em; margin: 0 0 8px 0;">Two layers the engine-equivalence panel below doesn't cover</h4>
+          <p style="margin: 0 0 10px 0;">
+            The engine-equivalence panel below proves <strong>layers 1–3 are commodity</strong> — same math, same algorithm, same library class, ~95-99% top-K agreement across HNSW implementations. <em class="atlas">That's the premise of this whole demo, not the conclusion.</em>
+          </p>
+          <p style="margin: 0 0 10px 0;">
+            What the engine panel <em>can't</em> show — because nobody's "engine" covers it — is the two layers at the ends of the stack:
+          </p>
+          <p style="margin: 0 0 8px 0;">
+            <em class="glue">L0 — what you embed and which model embeds it.</em> Contextualized embedding models like <a href="https://blog.voyageai.com/2025/07/23/voyage-context-3/" style="color: var(--atlas);"><code>voyage-context-3</code></a> need to <em>see the whole document</em> at embedding time so each chunk's vector encodes both local content and global context. The line between "the data" and "the embedding model" has collapsed — the embedding step is now a data-modelling decision that wants to live next to the documents it embeds. Atlas ships Voyage as first-party for exactly this reason.
+          </p>
+          <p style="margin: 0;">
+            <em class="glue">L5 — the query processor.</em> Pre-filter pushdown into HNSW, <code>$lookup</code> to sibling collections, server-side hybrid fusion via <code>$rankFusion</code>, server-side <code>$rerank</code> stages, <code>$facet</code> + <code>$group</code> rollups, projection — these are <strong>not</strong> drop-in between products. The composable-pipeline panel above is what L5 looks like in MongoDB; the "raw Lucene + glue" column is what L5 costs you when the query processor is your application code.
+          </p>
+          <p style="margin: 10px 0 0 0; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.08); color: var(--muted);">
+            <strong style="color: var(--text);">The whole point:</strong> portability is strongest in the middle (L1–L3); differentiation lives at both ends (L0 and L5); and L4 — database integration — is what <em>connects</em> the two ends to the rest of your data. <em>Every refinement to the stack diagram makes the agentic-database argument bigger, not smaller.</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ PLATFORM MAP — what the strategy has absorbed ============================ -->
+    <section class="platform-map" aria-label="What the MongoDB Atlas platform absorbs">
+      <p class="pm-eyebrow"><span style="color: var(--atlas);">the macro-strategy as one picture</span> &nbsp;·&nbsp; <span style="opacity: .65;">click any tile for the absorption story</span></p>
+      <h3 class="pm-title">What the platform has <em>absorbed</em>.<br>Each tile is a workload the industry once said <em>"you'll need a separate database for that."</em></h3>
+      <p class="pm-lede">
+        The composable-pipeline panel above and the engine-equivalence panel below are built on the smallest possible slice of the platform — the <strong>operational document database</strong> and <strong>Atlas Vector Search</strong> — because those two are sufficient to make <em>one</em> argument visible on a laptop in five minutes. <strong>The platform is much larger than that.</strong>
+        <br><br>
+        <em>Read the tiles below as an architect, not a shopper.</em> This isn't a vendor catalog and it isn't a feature checklist. It's the bench you're already drawing on a napkin when you sketch the data layer for a system you don't want to be paged about — operational records, search, vectors, hybrid, time-series, streams, encryption, sync, ops. Every tile is a workload that, before it lived inside Atlas, was a separate cluster, a separate vendor, a separate query language, a separate on-call rotation — <em>and</em> a CDC pipeline ferrying bytes between them. Atlas absorbed each one the same way: <strong style="color: var(--atlas);">extend the query layer; never rebuild the foundation; make the database you already have smarter.</strong> A coordinate is just a nested array. A graph edge is just a reference. A time-series reading is a timestamped object. An embedding is an array of floats. An encrypted field is opaque BSON. A stream event is a document in motion. Each of those was already native JSON; each of them simply waited for a smarter query layer.
+        <br><br>
+        Tiles outlined in green are the surfaces this demo actively uses. The rest are running on the same cluster — under the same `mongodb+srv://` URL, in the same aggregation framework, on the same ops surface — whether you ever touch them or not.
+      </p>
+
+      <div class="pm-counters">
+        <div class="pm-counter"><span class="n">1</span><span class="lbl">document model · since 2009</span></div>
+        <div class="pm-counter"><span class="n">1</span><span class="lbl">query language · for all of it</span></div>
+        <div class="pm-counter"><span class="n">1</span><span class="lbl">ops surface · one connection string</span></div>
+        <div class="pm-counter glue"><span class="n">N</span><span class="lbl">vendors collapsed into the platform</span></div>
+      </div>
+
+      <div class="pm-grid">
+        <div class="pm-tile in-demo" tabindex="0" role="button" data-modal="pm-document"
+             title="Document database — the foundation. Click for the absorption story.">
+          <span class="pm-name">Document database</span>
+          <span class="pm-replaces">replaces <strong>Postgres / MySQL / DynamoDB</strong></span>
+          <span class="pm-tag">✓ used in this demo</span>
+        </div>
+        <div class="pm-tile in-demo" tabindex="0" role="button" data-modal="pm-vector"
+             title="Atlas Vector Search ($vectorSearch). Click for the absorption story.">
+          <span class="pm-name">Atlas Vector Search <code>$vectorSearch</code></span>
+          <span class="pm-replaces">replaces <strong>Pinecone / Weaviate / Qdrant</strong></span>
+          <span class="pm-tag">✓ used in this demo</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-search"
+             title="Atlas Search ($search · Lucene). Click for the absorption story.">
+          <span class="pm-name">Atlas Search <code>$search</code></span>
+          <span class="pm-replaces">replaces <strong>Elasticsearch / OpenSearch / Solr</strong></span>
+          <span class="pm-tag">also on this cluster</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-rankfusion"
+             title="Hybrid retrieval ($rankFusion). Click for the absorption story.">
+          <span class="pm-name">Hybrid retrieval <code>$rankFusion</code></span>
+          <span class="pm-replaces">replaces <strong>app-side fusion code + a 2nd round trip</strong></span>
+          <span class="pm-tag">also on this cluster</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-voyage"
+             title="Voyage AI in the database. Click for the absorption story.">
+          <span class="pm-name">Voyage AI embeddings + rerank</span>
+          <span class="pm-replaces">replaces <strong>OpenAI/Cohere API + your own batcher</strong></span>
+          <span class="pm-tag">first-party, in-DB</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-timeseries"
+             title="Time-series collections. Click for the absorption story.">
+          <span class="pm-name">Time-series collections</span>
+          <span class="pm-replaces">replaces <strong>InfluxDB / Timescale / ClickHouse</strong></span>
+          <span class="pm-tag">also on this cluster</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-changestreams"
+             title="Change Streams — built-in CDC. Click for the absorption story.">
+          <span class="pm-name">Change Streams</span>
+          <span class="pm-replaces">replaces <strong>Debezium + Kafka Connect</strong></span>
+          <span class="pm-tag">built-in CDC</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-asp"
+             title="Atlas Stream Processing — same MQL, on streams. Click for the absorption story.">
+          <span class="pm-name">Atlas Stream Processing</span>
+          <span class="pm-replaces">replaces <strong>Flink / ksqlDB / Spark Streaming</strong></span>
+          <span class="pm-tag">same MQL, on streams</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-qe"
+             title="Queryable Encryption — search what you can't decrypt. Click for the absorption story.">
+          <span class="pm-name">Queryable Encryption</span>
+          <span class="pm-replaces">replaces <strong>app-side decrypt-then-query</strong></span>
+          <span class="pm-tag">search encrypted BSON</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-triggers"
+             title="Triggers + Functions — event-driven compute. Click for the absorption story.">
+          <span class="pm-name">Triggers + Functions</span>
+          <span class="pm-replaces">replaces <strong>AWS Lambda + EventBridge</strong></span>
+          <span class="pm-tag">event-driven compute</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-dataapi"
+             title="Data API + GraphQL — auto-generated. Click for the absorption story.">
+          <span class="pm-name">Data API + GraphQL</span>
+          <span class="pm-replaces">replaces <strong>Hasura / PostgREST / custom CRUD</strong></span>
+          <span class="pm-tag">auto-generated</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-federation"
+             title="Atlas Data Federation — federated $lookup. Click for the absorption story.">
+          <span class="pm-name">Atlas Data Federation</span>
+          <span class="pm-replaces">replaces <strong>Trino / Presto / DuckDB-on-S3</strong></span>
+          <span class="pm-tag">federated <code>$lookup</code></span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-archive"
+             title="Online Archive — same MQL, against object storage. Click for the absorption story.">
+          <span class="pm-name">Online Archive</span>
+          <span class="pm-replaces">replaces <strong>manual S3 export + Athena</strong></span>
+          <span class="pm-tag">tier cold data, same MQL</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-sql"
+             title="Atlas SQL + Charts — BI over live data. Click for the absorption story.">
+          <span class="pm-name">Atlas SQL + Charts</span>
+          <span class="pm-replaces">replaces <strong>Fivetran → Snowflake → Looker</strong></span>
+          <span class="pm-tag">BI over live data</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-devicesync"
+             title="Atlas Device Sync — offline-first edge. Click for the absorption story.">
+          <span class="pm-name">Atlas Device Sync</span>
+          <span class="pm-replaces">replaces <strong>Couchbase Mobile / custom sync</strong></span>
+          <span class="pm-tag">offline-first edge</span>
+        </div>
+        <div class="pm-tile unused" tabindex="0" role="button" data-modal="pm-ops"
+             title="Operations layer — multi-region, BYOK, compliance. Click for the absorption story.">
+          <span class="pm-name">Operations layer</span>
+          <span class="pm-replaces">replaces <strong>a platform team you've been hiring for 2 years</strong></span>
+          <span class="pm-tag">multi-region · BYOK · SOC 2 · HIPAA</span>
+        </div>
+      </div>
+
+      <p class="pm-footer">
+        <strong>Read the table column-by-column, not row-by-row.</strong> The argument this demo makes — <em style="font-style:normal; color: var(--atlas); font-weight: 700;">vector search composes with operational data inside one query language</em> — is the <em>same</em> argument every other tile above makes. <strong>Add full-text search</strong> and the composable pipeline gets a <code>$rankFusion</code> stage. <strong>Add time-series</strong> and tool traces become a first-class workload. <strong>Add Stream Processing</strong> and the freshness pipeline collapses into the platform itself. <strong>Add Queryable Encryption</strong> and "search what you can't decrypt" becomes a stage in the same pipeline. Every surface that joins the platform shifts another line item out of the right column and into the left, without forcing you to learn a new system to use it.
+        <span class="small" style="margin-top: 10px;"><strong style="color: var(--atlas);">An analogy.</strong> Every "specialized DB" wave was a different plug shape. The industry's answer was a new wall socket every time. <em style="color: var(--text);">MongoDB's answer was to keep extending the <strong style="color: var(--atlas);">same</strong> aggregation framework — one capability at a time — until every plug fit the same outlet.</em> That's why this table reads as one platform absorbing fifteen years of data-shape waves, instead of fifteen years of incompatible add-ons.</span>
+        <span class="small"><strong style="color: var(--atlas); font-weight: 700;">"MongoDB isn't a vector database"</strong> is the headline. <strong style="color: var(--atlas); font-weight: 700;">"MongoDB Atlas absorbs complexity into the platform and builds convenience into the query language"</strong> is the actual claim. The demo proves one slice of it. The tiles above are the rest.</span>
+      </p>
+    </section>
+
+    <!-- ============================ ENGINE EQUIVALENCE (supporting evidence) ============================ -->
+    <details class="supp" id="engine-supp">
+      <summary>
+        <span class="label">Supporting evidence · the retrieval engine is portable (Atlas <code>$vectorSearch</code> ≡ raw Lucene HNSW) · <em style="color:var(--atlas); font-style:normal; font-weight:700;">Lucene is the floor; everything /beyond-the-vector-database is the building</em></span>
+        <span style="flex:1"></span>
+        <span class="hint">This is why "MongoDB vs. pure vector stores" is a category error on retrieval alone. ↑ the panel above is the right contest.</span>
+      </summary>
+      <div class="supp-body">
+        <p class="supp-intro">
+          Same MiniLM embeddings over the same 20 docs. Same encoded query vector. Atlas
+          <code>$vectorSearch</code> on the left, raw <code>KnnFloatVectorQuery</code> on the right.
+          When they agree to four decimals — and they do — that's evidence that there is no
+          black-box-vendor-engine premium to pay for. <strong>Migration between Lucene-backed vector
+          stores is a transport change. Migration across HNSW implementations is ~95–99% no-op.</strong>
+          Which means the only thing anyone can actually differentiate on is everything <em>around</em>
+          the engine — and the composable-pipeline panel above is the simplest illustration of that
+          everything-around-it for an agentic workload.
+        </p>
+
+        <form id="search-form" class="legacy" autocomplete="off">
+          <div class="single-q">
+            <label for="q">query (encoded to 384-d MiniLM, fired at both backends)</label>
+            <input id="q" name="q" value="{{ default_query }}" placeholder="e.g. astronauts trapped near a black hole" />
+          </div>
+          <div class="bm25-q" style="display:none">
+            <label for="bm25">BM25 query · keywords</label>
+            <input id="bm25" name="bm25" />
+          </div>
+          <div class="vec-q" style="display:none">
+            <label for="vector">vector query · semantic</label>
+            <input id="vector" name="vector" />
+          </div>
+          <div>
+            <label for="k">top-K</label>
+            <input id="k" name="k" type="number" min="1" max="50" value="8" />
+          </div>
+          <button type="submit">Search</button>
+        </form>
+
+        <div class="form-row">
+          <span class="muted">try:</span>
+          <span class="examples" id="examples">
+            <button data-q="astronaut trapped black hole">astronaut trapped black hole</button>
+            <button data-q="ghost helps a journey across rapids">ghost helps a journey</button>
+            <button data-q="thieves robbery library">thieves robbery library</button>
+            <button data-q="alien invasion saves earth">alien invasion saves earth</button>
+            <button data-q="lonely keeper discovers signal">lonely keeper discovers signal</button>
+          </span>
+        </div>
+
+        <div id="agree-banner" class="agree-banner" style="display:none"></div>
+
+        <div class="grid two">
+          <div class="card">
+            <h2><span class="src vec">A · database</span> MongoDB&nbsp;$vectorSearch <span class="took" id="vec-took"></span></h2>
+            <div class="sub mono" id="vec-sub">— hit search —</div>
+            <ol class="hit-list" id="vec-list"></ol>
+          </div>
+          <div class="card">
+            <h2><span class="src lvec">B · engine</span> Lucene&nbsp;KnnFloatVectorQuery <span class="took" id="lvec-took"></span></h2>
+            <div class="sub mono" id="lvec-sub">— hit search —</div>
+            <ol class="hit-list" id="lvec-list"></ol>
+          </div>
+        </div>
+
+        <details class="supp" style="margin-top: 16px;">
+          <summary>
+            <span class="label">Hybrid retrieval · BM25 ⊕ vector ⇒ RRF</span>
+            <span style="flex:1"></span>
+            <span class="hint">In real Atlas, this is one <code>$rankFusion</code> stage server-side.</span>
+          </summary>
+          <div class="supp-body">
+            <p class="supp-intro">
+              The same Lucene index that holds the HNSW vectors also runs <strong>BM25</strong> over
+              the plain-text field. When a user query mixes literal keywords and meaning, you can
+              run both retrievers and fuse them with Reciprocal Rank Fusion:
+              <code class="mono">score = Σ 1/(60 + rank)</code>. Docs that show up in both rankings
+              bubble to the top. In Atlas you get this server-side via <code>$rankFusion</code>; here
+              the demo does it client-side because we're talking to raw Lucene.
+            </p>
+
+            <div class="form-row">
+              <label><input type="checkbox" id="split-toggle" /> compare mode (different query per retriever)</label>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <h2><span class="src bm25">BM25</span> Apache&nbsp;Lucene <span class="took" id="bm25-took"></span></h2>
+                <div class="sub mono" id="bm25-sub">— hit search —</div>
+                <ol class="hit-list" id="bm25-list"></ol>
+              </div>
+              <div class="card">
+                <h2><span class="src both">RRF</span> BM25 ⊕ MongoDB&nbsp;$vectorSearch</h2>
+                <div class="sub">
+                  Docs in both rankings (<span class="src both">both</span>) outscore docs from only one source.
+                </div>
+                <ol class="hit-list" id="rrf-list"></ol>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </details>
+
+    <!-- ============================ APPENDIX POINTER · WHEN A VECTOR DB IS RIGHT ============================ -->
+    <section style="margin-top: 24px; background: var(--panel); border: 1px solid var(--border);
+                    border-radius: 10px; padding: 18px 20px;">
+      <p style="margin: 0 0 6px 0; color: var(--atlas); font-size: 11px; letter-spacing: .25em;
+                text-transform: uppercase; font-weight: 700;">
+        appendix · the honest position
+      </p>
+      <h3 style="margin: 0 0 10px 0; font-size: 16px;">
+        When a specialized vector database <em style="color: var(--atlas);">is</em> the right answer
+      </h3>
+      <p style="color: var(--text); font-size: 13px; line-height: 1.55; margin: 0 0 12px 0; max-width: 940px;">
+        This whole demo argues vector databases are the wrong shape <em>for AI agents</em>. That argument is true.
+        But it would be intellectually dishonest to pretend specialized vector databases — pure ANN services,
+        large-scale vector tiers, search stacks with first-class kNN — were built by people who didn't know what they were doing. They ship in production today
+        against workloads where they're absolutely the right pick. An honest decision tree is more useful to you than
+        a triumphant headline, so here's both halves. <em>(The page hasn't been trying to sell you a database; it's
+        been trying to keep your AI infrastructure from collapsing into a pile of duct-taped microservices. The honest
+        appendix is part of the same job.)</em>
+      </p>
+      <p style="margin: 0 0 14px 0; padding: 12px 14px; background: var(--panel-2);
+                border-left: 3px solid var(--atlas); border-radius: 4px;
+                color: var(--text); font-size: 14px; line-height: 1.55; font-style: italic;">
+        Use a <strong style="font-style:normal;">vector database</strong> when your product
+        <em style="color: var(--atlas); font-style: normal;">is</em> vector search. Use an
+        <strong style="font-style:normal;">agentic database</strong> when your product
+        <em style="color: var(--atlas); font-style: normal;">is</em> an agent.
+      </p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+                    padding: 12px 14px;">
+          <p style="margin: 0 0 8px 0; color: var(--atlas); font-size: 11px; letter-spacing: .15em;
+                    text-transform: uppercase; font-weight: 700;">
+            ✓ vector DB is right
+          </p>
+          <ul style="margin: 0; padding-left: 18px; color: var(--text); font-size: 12.5px; line-height: 1.55;">
+            <li>Recommendation systems · image-similarity · face search · plagiarism · fraud-by-similarity · chemistry · audio fingerprinting</li>
+            <li>Pure semantic-search features (no agent reasoning around them)</li>
+            <li>1B+ vectors / 10K+ QPS with serious cost-per-query pressure</li>
+            <li>Brownfield: existing OLTP can't be migrated, vector recall needed now</li>
+            <li>2-week prototype where speed-to-ship beats architectural purity</li>
+          </ul>
+        </div>
+        <div style="background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+                    padding: 12px 14px;">
+          <p style="margin: 0 0 8px 0; color: var(--glue); font-size: 11px; letter-spacing: .15em;
+                    text-transform: uppercase; font-weight: 700;">
+            ✗ vector DB is wrong (use an agentic DB)
+          </p>
+          <ul style="margin: 0; padding-left: 18px; color: var(--text); font-size: 12.5px; line-height: 1.55;">
+            <li>AI agents — anything that reads operational records + chat + memory + traces on every turn</li>
+            <li>Greenfield AI app, no incumbent OLTP, choosing now</li>
+            <li>Anything where the "rescheduling your flight" walkthrough has 3+ steps that aren't step 3</li>
+            <li>Per-tenant scoped retrieval where filter pushdown into HNSW matters for correctness</li>
+            <li>Anything where "we'll just CDC the vectors over" is on a slide somewhere</li>
+          </ul>
+        </div>
+      </div>
+      <p style="margin: 14px 0 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; padding-top: 12px;
+                border-top: 1px dashed rgba(255,255,255,.08);">
+        <strong style="color: var(--text);">The honest version, in one sentence:</strong>
+        the "vector database" category is correct for the workload it was named for — pure semantic search where vector recall is the <em>whole</em> job — and a dedicated vector layer is exactly the right shape there. <em>It's just no longer the most common AI workload — which is what makes "vector database" a misleading default for the agent-shaped systems most teams are actually shipping in 2026, and a misleading default for the platform-shaped data layer most non-agent systems are also outgrowing.</em>
+      </p>
+    </section>
+  </main>
+
+  <!-- ============================ ABSORPTION-STORY MODAL (single, content swapped on open) ============================ -->
+  <div class="modal-overlay" id="absorption-modal" role="dialog" aria-modal="true"
+       aria-labelledby="absorption-modal-title" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <button class="modal-close" type="button" aria-label="Close">×</button>
+      <p class="modal-eyebrow" id="absorption-modal-eyebrow">the absorption</p>
+      <h3 class="modal-title" id="absorption-modal-title">—</h3>
+      <p class="modal-subtitle" id="absorption-modal-subtitle">—</p>
+
+      <div class="modal-section before">
+        <p class="ms-label">before — the industry's answer</p>
+        <p class="ms-body" id="absorption-modal-before">—</p>
+      </div>
+
+      <div class="modal-section after">
+        <p class="ms-label">after — MongoDB's answer</p>
+        <p class="ms-body" id="absorption-modal-after">—</p>
+      </div>
+
+      <div class="modal-section">
+        <p class="ms-label">the JSON-shape observation</p>
+        <p class="ms-body" id="absorption-modal-shape">—</p>
+      </div>
+
+      <blockquote class="modal-quote" id="absorption-modal-quote-wrap" hidden>
+        <span id="absorption-modal-quote">—</span>
+        <span class="mq-attrib" id="absorption-modal-attrib">—</span>
+      </blockquote>
+    </div>
+  </div>
+
+  <footer>
+    <code>docker compose up</code> · open <code>http://localhost:8088</code> ·
+    strategic frame: <a href="https://demos.oblivio-company.com/why-mongodb/" target="_blank" rel="noopener" style="color: var(--accent-2);">The Shape of Memory</a> ·
+    composable: <code>curl 'http://localhost:8088/api/composable?q=…&amp;genre=scifi&amp;decade_gte=2020'</code> ·
+    wire: <code>mongodb://localhost:27018</code>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // ---------- helpers ----------
+    function escapeHtml(s) {
+      return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function escapeReg(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    function tokenize(s) {
+      return (s || "").toLowerCase().match(/[a-z0-9]+/g) || [];
+    }
+    function highlight(plot, queryStr) {
+      const toks = [...new Set(tokenize(queryStr))].filter(t => t.length >= 3);
+      if (!toks.length) return escapeHtml(plot);
+      const re = new RegExp("\\b(" + toks.map(escapeReg).join("|") + ")\\b", "gi");
+      return escapeHtml(plot).replace(re, "<mark>$1</mark>");
+    }
+    function stars(n) {
+      if (n == null) return '';
+      const filled = Math.round(n);
+      return '★'.repeat(filled) + '☆'.repeat(Math.max(0, 5 - filled));
+    }
+    function fmtJson(v, indent) {
+      indent = indent || 0;
+      const pad = "  ".repeat(indent);
+      const pad2 = "  ".repeat(indent + 1);
+      if (v === null) return '<span class="num">null</span>';
+      if (typeof v === "string") return '<span class="str">"' + escapeHtml(v) + '"</span>';
+      if (typeof v === "number" || typeof v === "boolean") return '<span class="num">' + v + '</span>';
+      if (Array.isArray(v)) {
+        if (!v.length) return '[]';
+        return "[\n" + v.map(x => pad2 + fmtJson(x, indent + 1)).join(",\n") + "\n" + pad + "]";
+      }
+      if (typeof v === "object") {
+        const keys = Object.keys(v);
+        if (!keys.length) return '{}';
+        return "{\n" + keys.map(k => {
+          const isStage = k.startsWith("$");
+          const keyHtml = isStage
+            ? '<span class="stage">"' + escapeHtml(k) + '"</span>'
+            : '<span class="key">"' + escapeHtml(k) + '"</span>';
+          return pad2 + keyHtml + ": " + fmtJson(v[k], indent + 1);
+        }).join(",\n") + "\n" + pad + "}";
+      }
+      return escapeHtml(String(v));
+    }
+    function renderPipeline(stages) {
+      return "[\n" + stages.map((s, i) => {
+        const last = i === stages.length - 1;
+        return "  " + fmtJson(s, 1) + (last ? "" : ",");
+      }).join("\n") + "\n]";
+    }
+    function pipelineStageNames(stages) {
+      // Each stage is an object whose single top-level key is the stage operator (e.g. "$vectorSearch").
+      return stages.map(s => Object.keys(s)[0] || "?");
+    }
+    function renderStageChips(elId, stageNames, suffix) {
+      const parts = ['<span class="label">pipeline</span>'];
+      stageNames.forEach((name, i) => {
+        if (i > 0) parts.push('<span class="arrow">→</span>');
+        parts.push('<span class="chip-stage">' + escapeHtml(name) + '</span>');
+      });
+      if (suffix) parts.push('<span class="meta-suffix">' + suffix + '</span>');
+      $(elId).innerHTML = parts.join("");
+    }
+
+    // Track how many times the user has run the demo, so we can open the JSON on
+    // the first run (proof) and collapse it on subsequent runs (so it doesn't
+    // dominate the visual flow when iterating on queries).
+    let composableRunCount = 0;
+
+    function renderHit(h, opts) {
+      opts = opts || {};
+      const plot = highlight(h.plot || "", opts.highlightQuery || "");
+      const meta = [];
+      if (h.genre)       meta.push('<span class="chip">'  + escapeHtml(h.genre) + '</span>');
+      if (h.decade)      meta.push('<span class="chip">'  + h.decade + 's</span>');
+      if (h.runtime_min) meta.push('<span class="chip">'  + h.runtime_min + ' min</span>');
+      if (h.review_count != null && h.review_count > 0 && h.avg_rating != null) {
+        meta.push('<span class="review"><span class="stars">' + stars(h.avg_rating) +
+          '</span> ' + h.avg_rating.toFixed(2) + ' (' + h.review_count + ')</span>');
+      } else if (h.review_count === 0) {
+        meta.push('<span class="chip" style="color:var(--muted)">no reviews</span>');
+      }
+      const top = h.top_review ? '<div class="meta" style="margin-top:6px"><em style="color:var(--muted)">"' + escapeHtml(h.top_review) + '"</em></div>' : '';
+      const score = h.vector_score != null ? h.vector_score : h.score;
+      return '<li class="hit">' +
+        '<div class="rank">#' + h.rank + '</div>' +
+        '<div class="body">' +
+          '<div class="title-row"><span class="id">' + escapeHtml(h._id) + '</span><span class="title">' + escapeHtml(h.title || "") + '</span></div>' +
+          '<div class="plot">' + plot + '</div>' +
+          (meta.length ? '<div class="meta">' + meta.join("") + '</div>' : '') +
+          top +
+        '</div>' +
+        '<div class="score">' + (score != null ? Number(score).toFixed(4) : '') + '<small>vector</small></div>' +
+      '</li>';
+    }
+
+    // ---------- composable demo ----------
+    const composableForm = $("composable-form");
+    composableForm.addEventListener("submit", (e) => { e.preventDefault(); runComposable(); });
+    document.querySelectorAll("#composable-examples button").forEach(b => {
+      b.addEventListener("click", () => {
+        $("cq").value      = b.dataset.q || "";
+        $("cgenre").value  = b.dataset.genre || "";
+        $("cdecade").value = b.dataset.dec || "";
+        $("cmin").value    = b.dataset.min || "";
+        runComposable();
+      });
+    });
+
+    async function runComposable() {
+      const url = new URL("/api/composable", window.location.origin);
+      const q = $("cq").value.trim() || "astronauts grieving black hole";
+      url.searchParams.set("q", q);
+      const genre  = $("cgenre").value;
+      const decade = $("cdecade").value;
+      const incat  = $("cincat").value;
+      const minR   = $("cmin").value;
+      if (genre)         url.searchParams.set("genre", genre);
+      if (decade)        url.searchParams.set("decade_gte", decade);
+      if (incat !== "")  url.searchParams.set("in_catalog", incat);
+      if (minR)          url.searchParams.set("min_avg_rating", minR);
+      url.searchParams.set("k", 8);
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        $("atlas-sub").innerHTML = '<span style="color:var(--err)">composable request failed: ' + res.status + '</span>';
+        return;
+      }
+      const j = await res.json();
+
+      composableRunCount += 1;
+
+      // Atlas side
+      $("atlas-took").textContent = j.atlas.took_ms + " ms";
+      const filterPretty = Object.keys(j.filter || {}).length
+        ? '<code>' + escapeHtml(JSON.stringify(j.filter)) + '</code> (pushed into HNSW)'
+        : '<em>no filter</em>';
+      $("atlas-sub").innerHTML = 'q = "' + escapeHtml(j.query) + '"  ·  ' + filterPretty +
+        (j.min_avg_rating != null ? '  ·  avg_rating ≥ ' + j.min_avg_rating : '') +
+        '  →  <strong>' + j.atlas.hits.length + '</strong> hits in <strong>' + j.atlas.round_trips + '</strong> round trip';
+
+      // Always-visible chip strip — the "shape" of the pipeline at a glance.
+      const stageNames = pipelineStageNames(j.atlas.pipeline);
+      renderStageChips(
+        "atlas-chips",
+        stageNames,
+        '— ' + j.atlas.round_trips + ' round trip · ' + j.atlas.took_ms + ' ms'
+      );
+
+      // Full JSON pipeline — collapsed by default after the first run, so the
+      // results stay above the fold on subsequent iterations.
+      const pipelineJson = renderPipeline(j.atlas.pipeline);
+      $("atlas-pipeline").innerHTML = pipelineJson;
+      const lineCount = pipelineJson.split("\n").length;
+      $("atlas-pipeline-meta").textContent =
+        stageNames.length + " stages · " + lineCount + " lines";
+      $("atlas-pipeline-fold").open = composableRunCount === 1;
+
+      $("atlas-list").innerHTML = j.atlas.hits.map(h => renderHit(h, { highlightQuery: j.query })).join("") ||
+        '<li class="hit"><div></div><div class="muted">— no matches with this filter —</div><div></div></li>';
+
+      // Glue side
+      const g = j.raw_lucene_plus_glue;
+      $("glue-took").textContent = g.took_ms + " ms";
+      $("glue-steps").innerHTML = [
+        '<li><span class="timing">' + g.breakdown_ms["1_vector_call"] + ' ms</span><code>POST /vector { vector, k * 4 }</code> → over-fetch <strong>' + g.over_fetched + '</strong> raw HNSW neighbours, because we don\'t know how many will survive the filter.</li>',
+        '<li><span class="timing">' + g.breakdown_ms["2_post_filter"] + ' ms</span>App-side <code>filter(genre, decade, in_catalog)</code> against locally-cached doc metadata → kept <strong>' + g.kept_after_filter + '</strong>. With selective filters this is where recall dies.</li>',
+        '<li><span class="timing">' + g.breakdown_ms["3_app_side_join_and_aggregate"] + ' ms</span>Second round trip to fetch <code>reviews</code> for surviving ids, then app-side <code>group → avg(rating)</code>' + (j.min_avg_rating != null ? ' and post-filter <code>avg_rating ≥ ' + j.min_avg_rating + '</code>' : '') + ' → kept <strong>' + g.kept_after_min_rating + '</strong>.</li>',
+        '<li>Now you also own: keeping the vector store in sync with reviews (CDC), two ops surfaces, two auth models, two failure modes. Every one of these costs lives at Layer&nbsp;4.</li>',
+      ].join("");
+      $("glue-steps-meta").textContent = '4 steps · ' + g.round_trips + ' round trips';
+      $("glue-steps-fold").open = composableRunCount === 1;
+
+      $("glue-list").innerHTML = g.hits.map(h => renderHit(h, { highlightQuery: j.query })).join("") ||
+        '<li class="hit"><div></div><div class="muted">— nothing survived post-filter + min-rating —</div><div></div></li>';
+
+      // Summary banner — metrics-forward scorecard.
+      //
+      // Positioning intent: the headline metrics are the things that GROW with production
+      // (round trips per turn, query languages, sync pipelines, recall correctness).
+      // Raw ms is demoted to a footnote because on a 20-doc dataset both sides run in
+      // single-digit ms and the engine cost is roundoff. The honesty box above the panel
+      // already prepared the reader for this; the banner shouldn't undo that work.
+      const atlasHits = j.atlas.hits.length;
+      const glueHits  = g.hits.length;
+      const sameRecall = atlasHits === glueHits;
+      // Best-of-breed assumption: vector store + reviews store (+ if real, OLTP, session, traces…).
+      // The composable demo only joins one sibling collection, so the floor is 2 systems / query langs / surfaces.
+      const glueSystems = 2;
+      const sameAnswerLabel = sameRecall
+        ? '≡ same ' + atlasHits + ' hits'
+        : atlasHits + ' vs ' + glueHits + ' hits';
+      $("composable-summary").style.display = "";
+      $("composable-summary").innerHTML =
+        '<div class="scoreline">' +
+          '<div class="score">' +
+            '<span class="lbl">same answer · engine equivalence</span>' +
+            '<div class="vals">' +
+              '<span class="a" style="font-size:18px;">' + sameAnswerLabel + '</span>' +
+              '<span class="vs">' + (sameRecall ? 'engine is commodity' : 'post-filter recall hit') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="score">' +
+            '<span class="lbl">round trips · per agent step</span>' +
+            '<div class="vals">' +
+              '<span class="a">' + j.atlas.round_trips + '</span>' +
+              '<span class="vs">vs.</span>' +
+              '<span class="g">' + g.round_trips + '</span>' +
+              '<span class="vs">× N steps × M turns</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="score">' +
+            '<span class="lbl">sync pipelines you own</span>' +
+            '<div class="vals">' +
+              '<span class="a">0</span>' +
+              '<span class="vs">vs.</span>' +
+              '<span class="g">1+</span>' +
+              '<span class="vs">forever</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="score">' +
+            '<span class="lbl">recall on selective filters</span>' +
+            '<div class="vals">' +
+              '<span class="a">preserved</span>' +
+              '<span class="vs">vs.</span>' +
+              '<span class="g">at risk</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="moral">' +
+          (sameRecall
+            ? '<strong>Same answer, both sides — because the engine is the same.</strong> The only thing changing across this panel is what the database absorbs <em>around</em> the engine. '
+            : '<strong>Different answer counts — that delta is post-filter recall collapsing</strong> on a selective predicate. The engine is identical; the architecture isn\'t. ') +
+          'Multiply the round-trip count by N agent steps × M turns × K concurrent users, then add the CDC pipeline, the second on-call rotation, and the second SOC2 audit you don\'t see here. ' +
+          'That bill of materials is the contest — not the millisecond counter.' +
+          '<div style="margin-top: 8px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;">' +
+            '<em>Engine cost on this 20-doc dataset:</em> ' +
+            j.atlas.took_ms + ' ms (1 round trip) · ' + g.took_ms + ' ms (' + g.round_trips + ' round trips). ' +
+            'Both single-digit; engine cost is roundoff at this scale. <strong>The argument is not "faster" — it\'s "one system."</strong>' +
+          '</div>' +
+        '</div>';
+    }
+
+    // ---------- engine equivalence (legacy) ----------
+    const form = $("search-form");
+    const splitToggle = $("split-toggle");
+
+    function setSplit(on) {
+      form.classList.toggle("split", on);
+      $("q").parentElement.style.display = on ? "none" : "";
+      document.querySelector(".bm25-q").style.display = on ? "" : "none";
+      document.querySelector(".vec-q").style.display  = on ? "" : "none";
+      if (on) {
+        if (!$("bm25").value)   $("bm25").value   = $("q").value || "thief library hero earth journey";
+        if (!$("vector").value) $("vector").value = $("q").value || "lonely person discovers a mysterious signal and faces danger";
+      }
+    }
+    splitToggle.addEventListener("change", () => setSplit(splitToggle.checked));
+
+    function srcBadge(s) {
+      const cls = s === "BM25" ? "bm25" : "vec";
+      return '<span class="src ' + cls + '">' + s + '</span>';
+    }
+
+    function renderHits(listEl, hits, opts) {
+      const { highlightQuery = "", side = "" } = opts || {};
+      if (!hits.length) {
+        listEl.innerHTML = '<li class="hit"><div></div><div class="muted">— no hits —</div><div></div></li>';
+        return;
+      }
+      listEl.innerHTML = hits.map(h => {
+        const isFiller = side === "bm25" && h.matched === false;
+        const plot = highlight(h.plot || "", isFiller ? "" : highlightQuery);
+        let scoreCell;
+        if (side === "rrf") {
+          const b = h.rrf_breakdown || {};
+          const fromBoth = (h.from || []).length === 2;
+          const sources = (h.from || []).length ? (h.from || []).map(srcBadge).join("") : '<span class="src" style="color:var(--muted)">—</span>';
+          const breakdown =
+            '<div class="breakdown">' +
+              (b.bm25_contrib ? '<span class="ctrb bm25">BM25 r' + h.bm25_rank + ' · ' + (b.bm25_contrib).toFixed(5) + '</span>' : '') +
+              (b.bm25_contrib && b.vec_contrib ? ' + ' : '') +
+              (b.vec_contrib  ? '<span class="ctrb vec">vec r'  + h.vec_rank  + ' · ' + (b.vec_contrib ).toFixed(5) + '</span>' : '') +
+              ' = <span class="ctrb">' + h.score.toFixed(5) + '</span>' +
+            '</div>';
+          scoreCell = '<div class="score">' + h.score.toFixed(5) + '<small>' + (fromBoth ? '<span class="src both">both</span>' : sources) + '</small></div>';
+          return '<li class="hit">' +
+            '<div class="rank">#' + h.rank + '</div>' +
+            '<div class="body">' +
+              '<div class="title-row"><span class="id">' + h._id + '</span><span class="title">' + escapeHtml(h.title) + '</span></div>' +
+              '<div class="plot">' + plot + '</div>' +
+              breakdown +
+            '</div>' +
+            scoreCell +
+          '</li>';
+        } else {
+          let tag = "";
+          if (side === "bm25") {
+            tag = h.matched === false
+              ? '<span class="tag fill" title="padded with MatchAllDocsQuery — does not count in RRF">fill</span>'
+              : '<span class="tag match" title="actual BM25 token overlap">match</span>';
+          } else if (side === "lvec") {
+            tag = h.agrees_with_mongodb
+              ? '<span class="tag" style="color:var(--both);border-color:rgba(123,224,194,.55)" title="this _id also appears in MongoDB $vectorSearch top-K">≡ MongoDB</span>'
+              : '<span class="tag" style="color:var(--warn);border-color:rgba(247,192,116,.45)" title="this _id is NOT in MongoDB\'s top-K (HNSW approximation or tie)">≠ MongoDB</span>';
+          }
+          scoreCell = '<div class="score">' + h.score.toFixed(4) + '<small>' + (isFiller ? "filler" : "score") + '</small></div>';
+          return '<li class="hit ' + (isFiller ? "fill" : "") + '">' +
+            '<div class="rank">#' + h.rank + '</div>' +
+            '<div class="body">' +
+              '<div class="title-row"><span class="id">' + h._id + '</span><span class="title">' + escapeHtml(h.title) + '</span>' + tag + '</div>' +
+              '<div class="plot">' + plot + '</div>' +
+            '</div>' +
+            scoreCell +
+          '</li>';
+        }
+      }).join("");
+    }
+
+    async function runEngine(e) {
+      if (e) e.preventDefault();
+      const split = splitToggle.checked;
+      const k = $("k").value || 8;
+      const url = new URL("/api/search", window.location.origin);
+      let bm25Q, vecQ;
+      if (split) {
+        bm25Q = $("bm25").value.trim();
+        vecQ  = $("vector").value.trim();
+        if (!bm25Q || !vecQ) return;
+        url.searchParams.set("bm25", bm25Q);
+        url.searchParams.set("vector", vecQ);
+      } else {
+        const q = $("q").value.trim();
+        if (!q) return;
+        bm25Q = vecQ = q;
+        url.searchParams.set("q", q);
+      }
+      url.searchParams.set("k", k);
+
+      const res = await fetch(url);
+      if (!res.ok) { alert("Search failed: " + res.status + "\n" + (await res.text())); return; }
+      const j = await res.json();
+
+      $("bm25-took").textContent = j.bm25.took_ms + " ms";
+      $("vec-took").textContent  = j.vector.took_ms + " ms";
+      $("lvec-took").textContent = j.lucene_vec.took_ms + " ms";
+      const matched = j.bm25.matched_count != null ? j.bm25.matched_count : j.bm25.hits.length;
+      const padded  = j.bm25.padded || 0;
+      const embedDim = ({{ embed_dim or 384 }});
+      $("bm25-sub").innerHTML = 'q = "' + escapeHtml(j.bm25.query) + '"  ·  <strong style="color:var(--bm25)">' + matched + ' matched</strong>' + (padded ? ' + <span style="color:var(--muted)">' + padded + ' padded</span>' : '') + '  →  ' + j.bm25.hits.length + ' rows';
+      $("vec-sub").textContent  = 'q = "' + j.vector.query + '"  →  ' + j.vector.hits.length + ' hits · ' + embedDim + '-d MiniLM · MongoDB wire / aggregation';
+      $("lvec-sub").textContent = 'same ' + embedDim + '-d query vector  →  ' + j.lucene_vec.hits.length + ' hits · HTTP/JSON / KnnFloatVectorQuery (HNSW, cosine)';
+
+      const agree = j.lucene_vec.agreement || {};
+      const banner = $("agree-banner");
+      const jacc = agree.overlap_jaccard || 0;
+      const same1 = agree.same_top1;
+      const isStrong = jacc >= 0.99 && same1;
+      banner.className = "agree-banner" + (isStrong ? "" : " warn");
+      banner.style.display = "";
+      banner.innerHTML =
+        '<span class="verdict"><strong>' + (isStrong ? "≡" : "≈") + '</strong></span>' +
+        '<span class="metric">' +
+          'top-K overlap <strong>' + (jacc * 100).toFixed(0) + '%</strong> (' + agree.overlap_count + '/' + agree.k + ')' +
+          ' · top-1 ' + (same1 ? '<strong>matches</strong>' : '<strong>differs</strong>') +
+          ' · <code>mongodb ' + j.vector.took_ms + 'ms</code> · <code>lucene ' + j.lucene_vec.took_ms + 'ms</code>' +
+        '</span>' +
+        '<span style="flex:1"></span>' +
+        '<span>' + (isStrong
+          ? '<strong>Same engine, two transports.</strong> Migration between Lucene-backed vector stores is a transport change, not a science project.'
+          : 'Small dataset noise on ties — try a different query.') + '</span>';
+
+      // Reuse the simple legacy renderer for these three lists (no reviews / no genre meta).
+      renderHits($("bm25-list"), j.bm25.hits,        { highlightQuery: j.bm25.query, side: "bm25" });
+      renderHits($("vec-list"),  j.vector.hits,      { highlightQuery: j.vector.query });
+      renderHits($("lvec-list"), j.lucene_vec.hits,  { highlightQuery: j.lucene_vec.query, side: "lvec" });
+      renderHits($("rrf-list"),  j.rrf.hits,         { highlightQuery: j.bm25.query, side: "rrf" });
+    }
+
+    document.querySelectorAll("#examples button").forEach(b => {
+      b.addEventListener("click", () => {
+        $("q").value = b.dataset.q;
+        if (splitToggle.checked) { splitToggle.checked = false; setSplit(false); }
+        runEngine();
+      });
+    });
+    form.addEventListener("submit", runEngine);
+
+    window.addEventListener("DOMContentLoaded", () => {
+      runComposable();
+      const supp = $("engine-supp");
+      let loaded = false;
+      supp.addEventListener("toggle", () => {
+        if (supp.open && !loaded) { loaded = true; runEngine(); }
+      });
+      initAbsorptionModal();
+    });
+
+    /* ====================================================================
+     * Absorption-story modal — content for every clickable timeline node + platform-map tile.
+     * Each entry follows the exact shape of the macro-strategy:
+     *   before:  the industry's "you'll need a separate database for that" answer
+     *   after:   MongoDB's "extend the query layer; never rebuild the foundation" answer
+     *   shape:   the underlying JSON-shape observation that made the absorption possible
+     *   quote:   (optional) a load-bearing line from The Shape of Memory or the docs
+     * ==================================================================== */
+    const ABSORPTION_STORIES = {
+      // -------- timeline nodes --------
+      "document-model": {
+        eyebrow: "2009 · the foundation", title: "The document model",
+        subtitle: "JSON in code = JSON on disk — the foundation everything else extends",
+        before: "Every \"new attribute on a user\" was a migration script: write it, test it against a million rows, hold your breath, redeploy. The shape of the data in the code never matched the shape of the data in the database. The ORM ceremony was the tax you paid forever.",
+        after: "Store data the way your code already thinks about it. No migrations for nested fields, no joins to reassemble what was always one logical record. Indexes, ACID transactions, distributed clusters — but on documents, not rows.",
+        shape: "Application objects are <strong>nested, semi-structured documents</strong>. So is JSON. So is BSON on disk. <em>The shape never had to change between the three.</em>",
+        quote: "Putting an electric motor in a 1980s station wagon doesn't make it a Tesla. The document was never a feature retrofitted onto a relational engine. It WAS the engine.",
+        attrib: "The Shape of Memory · Chapter I"
+      },
+      "geo": {
+        eyebrow: "2010 · absorption #1", title: "<code>$geoNear</code> absorbs the spatial database",
+        subtitle: "Coordinates were always nested arrays. They just needed an index that knew it.",
+        before: "<em>\"You'll need PostGIS / a dedicated spatial database / Elasticsearch's geo plugin for that.\"</em> A second source of truth, a sync script, the user IDs drift, race conditions at 3 AM.",
+        after: "<code>2dsphere</code> index on a nested <code>{ type, coordinates }</code> field. <code>$geoNear</code>, <code>$geoWithin</code>, <code>$near</code> as aggregation stages. <strong>One database. One index type. One query language.</strong>",
+        shape: "A coordinate is <strong>just a nested array of two floats</strong>. A polygon is just an array of arrays. The document model already understood both — the index just needed to."
+      },
+      "wiredtiger": {
+        eyebrow: "2014 · the foundation rebuild", title: "WiredTiger absorbs ACID at scale",
+        subtitle: "Document-level locking, 50% throughput jump, ACID transactions across shards",
+        before: "The 2009 storage engine had a global lock. Critics were right: it was the bottleneck. The standard playbook was \"patch it incrementally and ship workarounds.\"",
+        after: "MongoDB <em>scrapped the storage engine entirely</em> and shipped WiredTiger. Document-level locking, snapshot isolation, multi-document transactions, and eventually distributed transactions across shards — without changing the API one bit.",
+        shape: "<strong>The query language and the storage engine are two different things.</strong> You can replace one without breaking the other. The aggregation framework didn't notice — and neither did your application code.",
+        quote: "Extend the query layer. Never rebuild the foundation.",
+        attrib: "The Shape of Memory · Chapter II"
+      },
+      "graphlookup": {
+        eyebrow: "2018 · absorption #2", title: "<code>$graphLookup</code> absorbs the graph database",
+        subtitle: "A document already knew its own references — you just had to ask",
+        before: "<em>\"You'll need Neo4j / JanusGraph / a dedicated graph database for that.\"</em> Stand up a connector, double the on-call rotation, sync IDs forever, hope the followers-of-followers query stays fast as the dataset grows.",
+        after: "<code>$graphLookup</code> as an aggregation stage. Recursive traversal across documents in the same collection or across collections. <strong>The reference was already there as a field in the document.</strong>",
+        shape: "A graph edge is <strong>just a reference between documents</strong>. A graph traversal is just a recursive <code>$lookup</code>. Nothing about the data needed to change — the framework just needed a stage that knew how to follow references in a loop."
+      },
+      "change-streams": {
+        eyebrow: "2018 · absorption #3", title: "Change Streams absorb CDC",
+        subtitle: "The oplog was already an event log. The wire protocol just had to expose it.",
+        before: "<em>\"You'll need Debezium + Kafka Connect + a connector that tails MongoDB's oplog and republishes events.\"</em> Three more systems, two more vendors, one more sync layer between your operational store and your event-driven services.",
+        after: "<code>db.collection.watch()</code> over the same wire protocol your application already speaks. Resumable, filterable, ordered. <strong>No external CDC system. No Kafka Connect. No oplog tailing in your application code.</strong>",
+        shape: "An <strong>event is just a document</strong>. The oplog was already storing them. The change-stream API just made the oplog a first-class wire-protocol citizen — the same MongoDB driver, the same authentication, the same network path."
+      },
+      "time-series": {
+        eyebrow: "2021 · absorption #4", title: "Time-series collections absorb Influx-class workloads",
+        subtitle: "A time-series reading is just a timestamped document. The storage engine just needed to know that.",
+        before: "<em>\"You'll need InfluxDB / TimescaleDB / ClickHouse for that.\"</em> A second cluster, a second query language, a second backup and DR story, a second on-call rotation — and a CDC pipeline keeping your operational store and your time-series store roughly in sync.",
+        after: "<code>db.createCollection(\"telemetry\", { timeseries: { timeField, metaField, granularity } })</code>. Automatic bucketing, columnar block storage, <code>$densify</code>, <code>$fill</code>, window functions — all expressed in the <strong>same aggregation framework</strong> as everything else.",
+        shape: "A time-series reading is <strong>just a document with a timestamp and a measurement</strong>. The storage layout (columnar, bucketed, compressed) is an implementation detail — the application sees the same documents, the same fields, the same MQL."
+      },
+      "search": {
+        eyebrow: "2022 · absorption #5", title: "<code>$search</code> absorbs Elasticsearch",
+        subtitle: "Lucene runs INSIDE the cluster — the index tails the oplog, no separate writer",
+        before: "<em>\"You'll need Elasticsearch / OpenSearch / Solr next to your database.\"</em> A second cluster, a connector, a sync pipeline keeping the BM25 index in step with your operational store. <strong>The drift between operational state and search index was a permanent class of bug.</strong>",
+        after: "<code>mongot</code>, a Lucene-based process, runs alongside <code>mongod</code> on the same Atlas node. It tails the oplog and keeps the search index continuously fresh. <code>$search</code> is an aggregation stage — full-text, facets, autocomplete, all composable with <code>$match</code>, <code>$lookup</code>, <code>$project</code>.",
+        shape: "<strong>An inverted index is just a different shape over the same documents.</strong> The oplog already had the change events; the index just had to read them. No external sync. No drift."
+      },
+      "vector-search": {
+        eyebrow: "2023 · absorption #6 · the vector wave", title: "<code>$vectorSearch</code> absorbs the pure vector store",
+        subtitle: "Same Lucene. Same oplog tail. Same aggregation framework. New index type. <em>That's it.</em>",
+        before: "<em>\"You'll need Pinecone / Weaviate / Qdrant / Milvus for that.\"</em> Extract text, call an embedding API, store floats in a separate silo, sync the IDs, pray. The Rube Goldberg pipeline of 2023 — and the most over-discussed database wave since 2009.",
+        after: "<code>$vectorSearch</code> is an aggregation stage on the same <code>mongot</code> Lucene process that runs <code>$search</code>. HNSW kNN, with <code>filter</code>-type fields pushed <em>into</em> the graph traversal. The embedding lives in the same document as the operational fields, the session sub-document, the long-term memory entry. <strong>Vector recall composes with <code>$match</code>, <code>$lookup</code>, and <code>$project</code> in one round trip.</strong>",
+        shape: "An embedding is <strong>just an array of floats</strong>. Native JSON. Already storable in a document. The HNSW index is just another shape over the same documents the search index was already reading. <em>This demo is the proof.</em>",
+        quote: "AI didn't need a new architecture. AI simply arrived in a shape the document already understood.",
+        attrib: "The Shape of Memory · Chapter IV"
+      },
+      "qe": {
+        eyebrow: "2024 · absorption #7", title: "Queryable Encryption absorbs decrypt-then-query",
+        subtitle: "Search and aggregate over ciphertext the database cannot read",
+        before: "<em>\"Decrypt in the application, then query.\"</em> Either the database sees plaintext (compliance nightmare), or you give up server-side filtering, sorting, and indexing on every encrypted field (performance nightmare). The choice between the two was a permanent architectural compromise.",
+        after: "Encrypt in the driver, with keys only your application holds. The server runs equality, range, prefix, and substring queries directly on ciphertext it cannot read. <strong>Personalized agent memory becomes mathematically inaccessible to anyone who isn't your application — including the DBA, including a compromised server, including a subpoena that targets the wrong layer.</strong>",
+        shape: "An encrypted field is <strong>just opaque BSON</strong>. The wire protocol already carried opaque binary types. The query layer just learned a few new operators that work on encrypted indexes. <em>The document model didn't change.</em>",
+        quote: "The most powerful memory is the one that can be searched but never seen. That is the foundation of trusted AI.",
+        attrib: "The Shape of Memory · Chapter V"
+      },
+      "asp": {
+        eyebrow: "2025 · absorption #8", title: "Atlas Stream Processing absorbs Flink",
+        subtitle: "The aggregation framework just learned to keep running on data that doesn't stop arriving",
+        before: "<em>\"You'll need Flink / ksqlDB / Spark Streaming for that.\"</em> A new query language, a new operational surface, a new schema registry, a new on-call rotation — and a sync layer back to your primary store.",
+        after: "Atlas Stream Processing runs the <strong>same aggregation pipelines</strong> developers already know — but continuously, on Kafka topics or change streams, with windowing and late-arrival handling built in. Output goes back to a Kafka topic or directly into an Atlas collection.",
+        shape: "A stream event is <strong>just a document in motion</strong>. Once you accept that, \"streaming\" is just \"aggregation that doesn't terminate.\" The framework you wrote your batch pipelines in is the framework you write your stream pipelines in. <em>Same MQL.</em>"
+      },
+      "rankfusion": {
+        eyebrow: "2026 · absorption #9", title: "<code>$rankFusion</code> + <code>$rerank</code> absorb hybrid retrieval",
+        subtitle: "Lexical + semantic, fused server-side, in one round trip — no app code, no second trip",
+        before: "<em>\"Run BM25 on Elasticsearch, vector on Pinecone, then fuse the rankings in your application.\"</em> Two systems, two query languages, two sets of credentials, two latency budgets, and ~50 lines of Python doing reciprocal-rank fusion that subtly broke every time someone changed a weight.",
+        after: "<code>$rankFusion</code> is an aggregation stage. It composes <code>$search</code> (BM25) and <code>$vectorSearch</code> (HNSW) inside <em>one</em> pipeline, fuses their rankings server-side with reciprocal-rank fusion, and pipes the result into <code>$rerank</code> (a Voyage cross-encoder) — all on the same wire trip. <strong>Twenty-five lines of MQL replace the entire fusion microservice.</strong>",
+        shape: "Both lexical scoring and vector scoring produce <strong>ranked lists of documents</strong>. The fusion algorithm is a stage that takes two ranked lists and emits one. <em>Why was this ever an application's problem?</em>"
+      },
+      "voyage": {
+        eyebrow: "2026 · absorption #10", title: "Voyage AI + <code>autoEmbed</code> absorb the embedding API",
+        subtitle: "The database vectorizes for you. The embedding API as a separate dependency — gone.",
+        before: "<em>\"Run a Lambda that pulls every new document, calls an external embedding API, batches the responses, handles 429s, writes the floats back, and prays nothing drifts.\"</em> Every embedding model upgrade was a re-vectorization of your entire corpus, a stale index, a 2 AM debugging session.",
+        after: "Declare an <code>autoEmbed</code> field in your collection schema. The database vectorizes documents on insert and update — same wire protocol, same indexes, no middleware. Voyage 4 family of embeddings + rerankers ships first-party. <strong>One model upgrade is one schema change, not a six-week migration.</strong>",
+        shape: "An embedding is <strong>a function of a document field</strong>. The database already had triggers; first-party embeddings just made vectorization a built-in field type. <em>The Rube Goldberg pipeline of 2023 collapses into one schema declaration in 2026.</em>"
+      },
+
+      // -------- platform-map tiles (some reuse timeline content; some are platform-shaped) --------
+      "pm-document": {
+        eyebrow: "the foundation · since 2009", title: "Document database",
+        subtitle: "Operational records, ACID transactions, distributed cluster — the surface every other surface extends",
+        before: "<em>\"Postgres / MySQL / DynamoDB.\"</em> The relational model forces you to flatten any data shape that isn't a row, then reassemble it with joins on every read. Schema migrations gate every product change.",
+        after: "BSON documents, dynamic schema with optional JSON Schema validation, ACID across shards, secondary indexes, 100+ aggregation operators. <strong>The data shape your code holds is the data shape your database holds.</strong>",
+        shape: "Application objects are nested, semi-structured documents. So is BSON on disk. Same shape, end to end."
+      },
+      "pm-vector": {
+        eyebrow: "the absorption · 2023 · USED IN THIS DEMO", title: "Atlas Vector Search · <code>$vectorSearch</code>",
+        subtitle: "HNSW kNN as an aggregation stage, with filter-type fields pushed INTO the graph traversal",
+        before: "<em>\"Pinecone / Weaviate / Qdrant / Milvus.\"</em> A second cluster, an extraction pipeline, an embedding-API call, and a CDC layer keeping the vector store roughly in sync with your operational truth.",
+        after: "<code>$vectorSearch</code> on the same <code>mongot</code> Lucene process that runs <code>$search</code>. The embedding lives in the same document as the operational fields. <strong>This demo's composable-pipeline panel is one query proving it composes with <code>$lookup</code>.</strong>",
+        shape: "An embedding is just an array of floats. Native JSON. Already storable in a document.",
+        quote: "AI simply arrived in a shape the document already understood.",
+        attrib: "The Shape of Memory · Chapter IV"
+      },
+      "pm-search": {
+        eyebrow: "the absorption · 2022", title: "Atlas Search · <code>$search</code>",
+        subtitle: "Lucene runs INSIDE the cluster — index tails the oplog, no separate writer",
+        before: "<em>\"Elasticsearch / OpenSearch / Solr.\"</em> A separate cluster with its own scaling, backup, and DR story, plus a sync pipeline that constantly drifts.",
+        after: "<code>mongot</code>, a Lucene process, runs alongside <code>mongod</code>. <code>$search</code> is an aggregation stage — full-text, facets, autocomplete, synonyms, fuzzy — composable with everything else.",
+        shape: "An inverted index is just a different shape over the same documents."
+      },
+      "pm-rankfusion": {
+        eyebrow: "the absorption · 2026", title: "Hybrid retrieval · <code>$rankFusion</code>",
+        subtitle: "Lexical + semantic, fused server-side, in ONE round trip",
+        before: "<em>\"Run BM25 over there, vector over there, fuse the rankings in app code.\"</em> Two services, two latency budgets, and a fusion microservice that subtly breaks every time you change a weight.",
+        after: "<code>$rankFusion</code> composes <code>$search</code> + <code>$vectorSearch</code> inside one pipeline and emits a fused ranked list. Pipe that into <code>$rerank</code> for cross-encoder reranking. <strong>One round trip.</strong>",
+        shape: "Both lexical and vector scoring produce ranked lists. Fusion is a stage that takes two and emits one."
+      },
+      "pm-voyage": {
+        eyebrow: "the absorption · 2026", title: "Voyage AI embeddings + rerank · <code>autoEmbed</code>",
+        subtitle: "First-party embeddings + rerankers, in the database, with autoEmbed as a field type",
+        before: "<em>\"OpenAI / Cohere API + your own batching layer + retry/queue infra + a re-vectorization job for every model upgrade.\"</em> Stale indexes, 429 storms, a 2 AM page every quarter.",
+        after: "Declare an <code>autoEmbed</code> field. The database vectorizes on insert/update with Voyage 4 (or any compatible model in the same embedding space). <strong>Model upgrade = schema change, not a six-week migration.</strong>",
+        shape: "An embedding is a function of a document field. The database already had triggers; first-party embeddings just made vectorization native."
+      },
+      "pm-timeseries": {
+        eyebrow: "the absorption · 2021", title: "Time-series collections",
+        subtitle: "Optimized columnar storage, automatic bucketing, $densify / $fill / window functions",
+        before: "<em>\"InfluxDB / Timescale / ClickHouse.\"</em> A second cluster, a second query language, a sync pipeline, a second backup story.",
+        after: "<code>db.createCollection(name, { timeseries: {...} })</code>. Same MQL, optimized layout, with first-class operators for gap-filling, rolling windows, and rollups.",
+        shape: "A time-series reading is just a timestamped document. Storage layout (columnar, bucketed) is an implementation detail."
+      },
+      "pm-changestreams": {
+        eyebrow: "the absorption · 2018", title: "Change Streams — built-in CDC",
+        subtitle: "Resumable, filterable change events over the same wire protocol",
+        before: "<em>\"Debezium + Kafka Connect + a custom oplog tailer.\"</em> Three more systems, two more vendors, one more sync layer.",
+        after: "<code>db.collection.watch(pipeline)</code> over the standard driver. Resumable from a token, filterable with aggregation operators, ordered. <strong>Powers Atlas Search, Vector Search, Triggers, and ASP under the hood.</strong>",
+        shape: "An event is just a document. The oplog was already storing them; the API just exposed it natively."
+      },
+      "pm-asp": {
+        eyebrow: "the absorption · 2025", title: "Atlas Stream Processing",
+        subtitle: "The aggregation framework, run continuously on data in motion",
+        before: "<em>\"Flink / ksqlDB / Spark Streaming.\"</em> A new query language, a new operational surface, a new schema registry, a new on-call rotation.",
+        after: "Same aggregation pipelines, but continuous. Source from Kafka or change streams, window with <code>$tumblingWindow</code> / <code>$hoppingWindow</code>, sink to Atlas or back to Kafka. <strong>One MQL, batch and stream.</strong>",
+        shape: "A stream event is just a document in motion. Streaming is aggregation that doesn't terminate."
+      },
+      "pm-qe": {
+        eyebrow: "the absorption · 2024", title: "Queryable Encryption",
+        subtitle: "Search and aggregate over ciphertext the database cannot read",
+        before: "<em>\"Decrypt in the application, then query.\"</em> Either the database sees plaintext (compliance) or you give up server-side filtering and indexing (performance).",
+        after: "Encrypt in the driver. The server runs equality, range, prefix, and substring queries on ciphertext using encrypted indexes. <strong>The DBA, a compromised server, and a subpoena targeting the wrong layer all see only opaque binary.</strong>",
+        shape: "An encrypted field is just opaque BSON. The wire protocol already carried binary types.",
+        quote: "The most powerful memory is the one that can be searched but never seen.",
+        attrib: "The Shape of Memory · Chapter V"
+      },
+      "pm-triggers": {
+        eyebrow: "the absorption", title: "Triggers + Functions",
+        subtitle: "Event-driven serverless compute that fires on collection events, schedule, or HTTP",
+        before: "<em>\"AWS Lambda + EventBridge + IAM + a connector that ferries change events to Lambda invocations.\"</em>",
+        after: "Triggers fire on collection events (insert/update/delete/replace), on a schedule, or on HTTP requests. The function runs with full driver access and authenticated context. <strong>Event-driven workflows without leaving the platform.</strong>",
+        shape: "A trigger is just a function with a change-stream filter wired to it."
+      },
+      "pm-dataapi": {
+        eyebrow: "the absorption", title: "Data API + GraphQL",
+        subtitle: "Auto-generated REST + GraphQL over your collections, with rules-based auth",
+        before: "<em>\"Hasura / PostgREST / a custom CRUD service + an auth middleware + a deployment pipeline for both.\"</em>",
+        after: "Auto-generated REST and GraphQL endpoints with declarative role-based rules. <strong>No app server required for read/write paths that don't have custom business logic.</strong>",
+        shape: "A REST resource is just a document collection. A GraphQL type is just a document schema."
+      },
+      "pm-federation": {
+        eyebrow: "the absorption", title: "Atlas Data Federation",
+        subtitle: "Query collections, S3 buckets, and HTTP endpoints in the SAME aggregation pipeline",
+        before: "<em>\"Trino / Presto / DuckDB-on-S3 + a separate query language for cross-source joins.\"</em>",
+        after: "Federated <code>$lookup</code> across MongoDB collections, S3-backed Parquet/JSON files, and HTTP endpoints. <strong>One MQL spans your hot data, your cold data, and your external sources.</strong>",
+        shape: "A row in Parquet is just a document with typed fields. The federation layer just teaches MQL where to find them."
+      },
+      "pm-archive": {
+        eyebrow: "the absorption", title: "Online Archive",
+        subtitle: "Tier cold documents to object storage automatically; query them transparently with the same MQL",
+        before: "<em>\"Manual S3 export + Athena + a separate query language for the archive.\"</em>",
+        after: "Define an archival rule (e.g. <code>created_at < now - 18mo</code>). Documents tier to object storage automatically. <strong>The same query language reads hot, archived, or both.</strong>",
+        shape: "Cold storage is just a different physical location for the same documents. The query layer doesn't have to care."
+      },
+      "pm-sql": {
+        eyebrow: "the absorption", title: "Atlas SQL + Charts",
+        subtitle: "BI-tool integration (Tableau, Power BI, Looker) directly over your live cluster",
+        before: "<em>\"Fivetran → Snowflake → Looker — and a 24-hour data freshness SLA.\"</em>",
+        after: "Atlas SQL exposes your live collections to BI tools through a SQL interface backed by the same engine. Charts is built-in dashboarding. <strong>BI over operational data, no ETL pipeline required.</strong>",
+        shape: "A SQL query is a different surface over the same documents. The aggregation framework already knew how to project them flat."
+      },
+      "pm-devicesync": {
+        eyebrow: "the absorption", title: "Atlas Device Sync",
+        subtitle: "Two-way sync between Atlas and on-device Realm databases — offline-first mobile + edge",
+        before: "<em>\"Couchbase Mobile / a custom sync layer + conflict resolution + a separate offline data model.\"</em>",
+        after: "Realm SDKs on the device, Atlas in the cloud, conflict-free replicated sync between them. The application reads and writes the same document model regardless of network state.",
+        shape: "An offline-first record is just a document with a sync state field. The sync engine reconciles them."
+      },
+      "pm-ops": {
+        eyebrow: "the platform layer", title: "Operations layer",
+        subtitle: "Multi-region, point-in-time backups, auto-scale, BYOK, VPC peering, RBAC, audit, SOC 2 / HIPAA / PCI-DSS / FedRAMP",
+        before: "<em>\"A platform team you've been hiring for two years.\"</em> Cluster provisioning runbooks, certificate rotation cron jobs, BYOK key management, multi-region failover drills, audit logging plumbing, compliance attestation collection.",
+        after: "Atlas absorbs all of it. Click a region, click a backup policy, click an encryption mode, click a compliance attestation. <strong>The operating model is part of the product.</strong>",
+        shape: "The platform doesn't just store your data. It runs the operational surface around it."
+      }
+    };
+
+    function initAbsorptionModal() {
+      const overlay = $("absorption-modal");
+      if (!overlay) return;
+      const dialog = overlay.querySelector(".modal-dialog");
+      const closeBtn = overlay.querySelector(".modal-close");
+      let lastFocus = null;
+
+      function openModal(key, opener) {
+        const story = ABSORPTION_STORIES[key];
+        if (!story) { console.warn("[absorption] no story for key:", key); return; }
+        lastFocus = opener || document.activeElement;
+        $("absorption-modal-eyebrow").innerHTML = story.eyebrow || "the absorption";
+        $("absorption-modal-title").innerHTML  = story.title || "—";
+        $("absorption-modal-subtitle").innerHTML = story.subtitle || "";
+        $("absorption-modal-before").innerHTML = story.before || "—";
+        $("absorption-modal-after").innerHTML  = story.after  || "—";
+        $("absorption-modal-shape").innerHTML  = story.shape  || "—";
+        const qWrap = $("absorption-modal-quote-wrap");
+        if (story.quote) {
+          $("absorption-modal-quote").innerHTML = "&ldquo;" + story.quote + "&rdquo;";
+          $("absorption-modal-attrib").textContent = "— " + (story.attrib || "");
+          qWrap.hidden = false;
+        } else {
+          qWrap.hidden = true;
+        }
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        setTimeout(() => closeBtn.focus(), 60);
+      }
+
+      function closeModal() {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+        if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+      }
+
+      closeBtn.addEventListener("click", closeModal);
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+      });
+
+      function bindOpeners() {
+        document.querySelectorAll("[data-modal]").forEach((el) => {
+          if (el.__absorptionBound) return;
+          el.__absorptionBound = true;
+          el.addEventListener("click", (e) => {
+            e.preventDefault();
+            openModal(el.getAttribute("data-modal"), el);
+          });
+          el.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openModal(el.getAttribute("data-modal"), el);
+            }
+          });
+        });
+      }
+      bindOpeners();
+    }
+  </script>
+</body>
+</html>

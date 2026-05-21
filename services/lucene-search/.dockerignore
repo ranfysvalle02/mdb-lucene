@@ -1,0 +1,11 @@
+# Anything Gradle produces locally — the in-container build is hermetic and
+# uploading the host's Gradle cache on every `docker compose build` is slow
+# AND risks shadowing the container's own toolchain.
+.gradle/
+build/
+.idea/
+*.iml
+*.log
+
+# OS / editor noise
+.DS_Store
