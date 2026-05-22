@@ -99,6 +99,42 @@ public final class HttpApi {
             ctx.contentType("application/json").result(GSON.toJson(hits));
         });
 
+        // POST /hybrid — score-level hybrid: one Lucene BooleanQuery combining a parsed BM25
+        // query and a KnnFloatVectorQuery as SHOULD clauses, each wrapped in a BoostQuery with
+        // caller-supplied weights. The capability Solr (function_score / bf / bq) and OpenSearch
+        // (hybrid query) expose at the engine level, and that Atlas $rankFusion (rank-level RRF)
+        // does NOT — the demo shows it runs in 30 lines of Java against the same Lucene primitive
+        // that mongot itself runs.
+        // Body: {"q": "...", "vector": [...floats...], "k": 10, "bm25_weight": 0.6, "vec_weight": 0.4}
+        app.post("/hybrid", ctx -> {
+            String raw = ctx.body();
+            if (raw == null || raw.isBlank()) {
+                ctx.status(HttpStatus.BAD_REQUEST).result(GSON.toJson(Map.of("error", "empty body")));
+                return;
+            }
+            HybridQuery body = GSON.fromJson(raw, HybridQuery.class);
+            if (body == null) {
+                ctx.status(HttpStatus.BAD_REQUEST).result(GSON.toJson(Map.of("error", "bad body")));
+                return;
+            }
+            boolean haveText = body.q != null && !body.q.isBlank();
+            boolean haveVec = body.vector != null && body.vector.length > 0;
+            if (!haveText && !haveVec) {
+                ctx.status(HttpStatus.BAD_REQUEST).result(GSON.toJson(Map.of("error", "missing q and vector")));
+                return;
+            }
+            int k = body.k == null ? 10 : body.k;
+            k = Math.max(1, Math.min(k, 100));
+            float bm25Weight = body.bm25_weight == null ? 0.5f : body.bm25_weight;
+            float vecWeight = body.vec_weight == null ? 0.5f : body.vec_weight;
+            List<Map<String, Object>> hits = index.hybridSearch(body.q, body.vector, bm25Weight, vecWeight, k);
+            ctx.contentType("application/json").result(GSON.toJson(Map.of(
+                    "hits", hits,
+                    "bm25_weight", bm25Weight,
+                    "vec_weight", vecWeight,
+                    "k", k)));
+        });
+
         app.start(port);
     }
 
@@ -113,5 +149,14 @@ public final class HttpApi {
     private static final class VectorQuery {
         float[] vector;
         Integer k;
+    }
+
+    @SuppressWarnings("unused")
+    private static final class HybridQuery {
+        String q;
+        float[] vector;
+        Integer k;
+        Float bm25_weight;
+        Float vec_weight;
     }
 }

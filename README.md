@@ -34,24 +34,25 @@ docker compose down -v         # nuke everything
 
 ## Endpoints
 
-| URL                                | What it returns                                                     |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| `GET /`                            | The two-panel UI (engine equivalence + composable pipeline)         |
-| `GET /healthz`                     | Liveness + introspection JSON (always 200)                          |
-| `GET /readyz`                      | Readiness; 200 once seed + vector index are queryable, else 503     |
-| `GET /api/search?q=...&k=8`        | BM25 (Lucene) + `$vectorSearch` + Lucene HNSW + RRF fusion          |
-| `GET /api/composable?q=...&genre=` | One Atlas pipeline vs. raw-Lucene-plus-app-glue, with timings       |
+| URL                                                  | What it returns                                                                              |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /`                                              | The two-panel UI (engine equivalence + composable pipeline)                                  |
+| `GET /healthz`                                       | Liveness + introspection JSON (always 200)                                                   |
+| `GET /readyz`                                        | Readiness; 200 once seed + vector index are queryable, else 503                              |
+| `GET /api/search?q=...&k=8&bm25_weight=&vec_weight=` | BM25 (Lucene) + `$vectorSearch` + Lucene HNSW + RRF (rank-level) + `BooleanQuery` score-level hybrid |
+| `GET /api/composable?q=...&genre=`                   | One Atlas pipeline vs. raw-Lucene-plus-app-glue, with timings                                |
 
 The Lucene service speaks HTTP directly on `${LUCENE_PORT:-9090}`:
 
-| URL                  | What it does                                       |
-| -------------------- | -------------------------------------------------- |
-| `GET /health`        | Liveness                                           |
-| `POST /bulk`         | Upsert `[{_id, text, embedding[]}]`                |
-| `POST /index`        | Upsert a single document                           |
-| `DELETE /index/{id}` | Delete by `_id`                                    |
-| `GET /search?q=&k=`  | BM25 (optionally padded to `k` with `?pad=false`)  |
-| `POST /vector`       | HNSW kNN over `embedding` (`{"vector":[],"k":10}`) |
+| URL                  | What it does                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GET /health`        | Liveness                                                                                              |
+| `POST /bulk`         | Upsert `[{_id, text, embedding[]}]`                                                                   |
+| `POST /index`        | Upsert a single document                                                                              |
+| `DELETE /index/{id}` | Delete by `_id`                                                                                       |
+| `GET /search?q=&k=`  | BM25 (optionally padded to `k` with `?pad=false`)                                                     |
+| `POST /vector`       | HNSW kNN over `embedding` (`{"vector":[],"k":10}`)                                                    |
+| `POST /hybrid`       | Score-level hybrid in one `BooleanQuery(BoostQuery(BM25), BoostQuery(KnnFloatVectorQuery))` — the Solr `function_score` / OpenSearch `hybrid` capability that Atlas `$rankFusion` (rank-level only) does not expose. Body: `{"q":"...","vector":[...],"k":10,"bm25_weight":0.6,"vec_weight":0.4}` |
 
 ## Layout
 
@@ -96,6 +97,12 @@ and embedding model are pinned in `docker-compose.yml` — change them there if 
 - The Lucene `/search` response is padded with low-boost `MatchAllDocsQuery` filler so
   BM25 and `$vectorSearch` columns line up 1:1 in the UI; the `matched` flag on each
   hit distinguishes real BM25 matches from filler, and only real matches feed RRF.
+- `POST /hybrid` exists to make a specific gap visible: even though Atlas `mongot` and
+  this Lucene service share the same engine, Atlas does **not** expose a score-level
+  hybrid (`w·BM25 + w·cos`) the way Solr's `function_score` / OpenSearch's `hybrid`
+  query do. `$rankFusion` is rank-level (RRF). The third column in the engine-equivalence
+  panel runs the `BooleanQuery(KnnFloatVectorQuery, TermQuery)` primitive Lucene itself
+  supports — that's the part Atlas's user-facing API still leaves on the floor.
 
 ## License
 

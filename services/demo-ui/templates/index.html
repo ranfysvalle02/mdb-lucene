@@ -20,6 +20,7 @@
       --vec: #7aa2ff;
       --lvec: #c79bff;
       --both: #7be0c2;
+      --hybrid: #ff9d5c;
       --atlas: #00ed64;
       --glue: #ff9faa;
     }
@@ -429,12 +430,13 @@
     .src { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
       border-radius: 999px; font-size: 11px; font-weight: 600;
       background: var(--panel-2); border: 1px solid var(--border); }
-    .src.bm25  { color: var(--bm25);  border-color: rgba(247,192,116,.45); }
-    .src.vec   { color: var(--vec);   border-color: rgba(122,162,255,.45); }
-    .src.lvec  { color: var(--lvec);  border-color: rgba(199,155,255,.45); }
-    .src.both  { color: var(--both);  border-color: rgba(123,224,194,.55); }
-    .src.atlas { color: var(--atlas); border-color: rgba(0,237,100,.45); }
-    .src.glue  { color: var(--glue);  border-color: rgba(255,159,170,.45); }
+    .src.bm25   { color: var(--bm25);   border-color: rgba(247,192,116,.45); }
+    .src.vec    { color: var(--vec);    border-color: rgba(122,162,255,.45); }
+    .src.lvec   { color: var(--lvec);   border-color: rgba(199,155,255,.45); }
+    .src.both   { color: var(--both);   border-color: rgba(123,224,194,.55); }
+    .src.hybrid { color: var(--hybrid); border-color: rgba(255,157,92,.55); }
+    .src.atlas  { color: var(--atlas);  border-color: rgba(0,237,100,.45); }
+    .src.glue   { color: var(--glue);   border-color: rgba(255,159,170,.45); }
 
     /* ---------- summary banner under composable demo ---------- */
     .summary { background: rgba(0,237,100,.06); border: 1px solid rgba(0,237,100,.28);
@@ -606,8 +608,9 @@
 
     .breakdown { color: var(--muted); font-size: 11px; margin-top: 4px; }
     .breakdown .ctrb { color: var(--text); }
-    .breakdown .ctrb.bm25 { color: var(--bm25); }
-    .breakdown .ctrb.vec  { color: var(--vec); }
+    .breakdown .ctrb.bm25   { color: var(--bm25); }
+    .breakdown .ctrb.vec    { color: var(--vec); }
+    .breakdown .ctrb.hybrid { color: var(--hybrid); }
 
     /* ---------- collapsible <details> ---------- */
     details.supp { margin-top: 22px; background: var(--panel); border: 1px solid var(--border);
@@ -1706,36 +1709,64 @@
 
         <details class="supp" style="margin-top: 16px;">
           <summary>
-            <span class="label">Hybrid retrieval · BM25 ⊕ vector ⇒ RRF</span>
+            <span class="label">Hybrid retrieval · BM25 ⊕ vector ⇒ RRF · plus a real BooleanQuery</span>
             <span style="flex:1"></span>
-            <span class="hint">In real Atlas, this is one <code>$rankFusion</code> stage server-side.</span>
+            <span class="hint">Atlas exposes <code>$rankFusion</code> (rank-level). The score-level column is what Atlas <em>doesn't</em>.</span>
           </summary>
           <div class="supp-body">
             <p class="supp-intro">
               The same Lucene index that holds the HNSW vectors also runs <strong>BM25</strong> over
-              the plain-text field. When a user query mixes literal keywords and meaning, you can
-              run both retrievers and fuse them with Reciprocal Rank Fusion:
-              <code class="mono">score = Σ 1/(60 + rank)</code>. Docs that show up in both rankings
-              bubble to the top. In Atlas you get this server-side via <code>$rankFusion</code>; here
-              the demo does it client-side because we're talking to raw Lucene.
+              the plain-text field, so both retrievers read the same segments off the same
+              <code>mongot</code> process. <em>That's the bonus, and also the limit.</em> When a
+              user query mixes literal keywords and meaning, the demo runs both and fuses them
+              with Reciprocal Rank Fusion: <code class="mono">score = Σ wₚ · 1/(60 + rankₚ)</code>.
+            </p>
+
+            <p class="supp-intro" style="border-left: 3px solid var(--warn); padding-left: 12px; margin-top: 0;">
+              <strong style="color: var(--warn);">Honest caveat.</strong> Atlas exposes
+              <code>$rankFusion</code> for the <em>rank-level</em> version of this server-side
+              (with per-pipeline weights), and <code>$rerank</code> for cross-encoder reranking on
+              top — but it does <strong>not</strong> expose a <em>score-level</em> hybrid the way
+              Solr's <code>function_score</code> / <code>bf</code> / <code>bq</code> or
+              OpenSearch's <code>hybrid</code> query do. You can't ask <code>mongot</code> for
+              <code class="mono">0.6·textScore + 0.4·vectorScore</code> in one Lucene query, and
+              <code>$search.compound</code> won't take <code>$vectorSearch</code> as a clause.
+              <strong>Two stages plus rank-level RRF is the contract</strong>; the
+              <code>BooleanQuery(KnnFloatVectorQuery, TermQuery)</code> primitive Lucene itself
+              supports is not surfaced. The third column below is exactly that — ~30 lines of
+              Java against the same Lucene primitive that <code>mongot</code> runs, doing what
+              Atlas's user-facing API doesn't currently express.
             </p>
 
             <div class="form-row">
               <label><input type="checkbox" id="split-toggle" /> compare mode (different query per retriever)</label>
+              <span style="flex:1"></span>
+              <label class="muted" style="font-size:12px;">
+                hybrid weights · BM25
+                <input type="number" id="bm25-weight" value="0.6" min="0" max="1" step="0.1" style="width:60px; margin: 0 8px 0 4px;" />
+                vec
+                <input type="number" id="vec-weight" value="0.4" min="0" max="1" step="0.1" style="width:60px; margin-left:4px;" />
+              </label>
             </div>
 
-            <div class="grid two">
+            <div class="grid three">
               <div class="card">
                 <h2><span class="src bm25">BM25</span> Apache&nbsp;Lucene <span class="took" id="bm25-took"></span></h2>
                 <div class="sub mono" id="bm25-sub">— hit search —</div>
                 <ol class="hit-list" id="bm25-list"></ol>
               </div>
               <div class="card">
-                <h2><span class="src both">RRF</span> BM25 ⊕ MongoDB&nbsp;$vectorSearch</h2>
+                <h2><span class="src both">RRF</span> rank-level fusion <span class="took"></span></h2>
                 <div class="sub">
-                  Docs in both rankings (<span class="src both">both</span>) outscore docs from only one source.
+                  Atlas equivalent: <code>$rankFusion</code>. Docs in both rankings
+                  (<span class="src both">both</span>) outscore docs from only one source.
                 </div>
                 <ol class="hit-list" id="rrf-list"></ol>
+              </div>
+              <div class="card" style="border-color: rgba(255,157,92,.45);">
+                <h2><span class="src hybrid">C · score-level</span> Lucene&nbsp;BooleanQuery <span class="took" id="hyb-took"></span></h2>
+                <div class="sub mono" id="hyb-sub">— hit search —</div>
+                <ol class="hit-list" id="hyb-list"></ol>
               </div>
             </div>
           </div>
@@ -1800,10 +1831,35 @@
           </ul>
         </div>
       </div>
+
+      <!-- ⚠ third tile — where Atlas itself is still catching up to Solr / OpenSearch -->
+      <div style="margin-top: 14px; background: var(--panel-2); border: 1px solid rgba(247,192,116,.45);
+                  border-left: 3px solid var(--warn); border-radius: 8px; padding: 12px 14px;">
+        <p style="margin: 0 0 8px 0; color: var(--warn); font-size: 11px; letter-spacing: .15em;
+                  text-transform: uppercase; font-weight: 700;">
+          ⚠ where Atlas itself is still catching up to Solr / OpenSearch
+        </p>
+        <p style="margin: 0 0 8px 0; color: var(--muted); font-size: 12px; line-height: 1.55;">
+          The "same Lucene index" line in the panel above is true. The sharper claim — "same Lucene <em>query</em>" — isn't yet. <code>$rankFusion</code> is rank-level, not score-level. Things the Lucene engine already supports that Atlas doesn't currently expose at the user-facing query layer:
+        </p>
+        <ul style="margin: 0; padding-left: 18px; color: var(--text); font-size: 12.5px; line-height: 1.55;">
+          <li><strong>Score-level hybrid.</strong> No native linear combination of <code>textScore</code> and <code>vectorScore</code> with custom weights. <code>$rankFusion</code> fuses ranks (RRF with optional per-pipeline weights), not raw scores. Solr's <code>function_score</code> / <code>bf</code> / <code>bq</code> and OpenSearch's <code>hybrid</code> query both do score-level fusion at the engine.</li>
+          <li><strong>One BooleanQuery across modalities.</strong> <code>$search.compound</code> doesn't accept <code>$vectorSearch</code> as a clause. You get two aggregation stages, not one Lucene <code>BooleanQuery(KnnFloatVectorQuery, TermQuery)</code> — even though that's exactly the primitive sitting one layer down. The third column in the panel above runs that primitive directly, in ~30 lines of Java.</li>
+          <li><strong>Learning-to-rank.</strong> No first-party LTR training loop equivalent to Solr's LTR plugin or OpenSearch's <code>ml-commons</code>. <code>$rerank</code> calls a hosted Voyage cross-encoder — great for off-the-shelf reranking, not a model you fit on your own click data.</li>
+          <li><strong>Field-level boost functions.</strong> Limited compared to Solr's <code>function_score</code> / <code>bf</code>/<code>bq</code>. You compose with <code>$addFields</code> + <code>$sort</code> in the pipeline, which is fine, but it isn't "in the Lucene query".</li>
+        </ul>
+        <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; font-style: italic;">
+          None of this changes the platform argument the rest of the page makes — the composable-pipeline panel is still the workload most teams actually have. But on the engine-equivalence panel specifically, "same Lucene index" is real and "same Lucene query" is not, and pretending otherwise wouldn't survive a serious search team's read.
+        </p>
+      </div>
       <p style="margin: 14px 0 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; padding-top: 12px;
                 border-top: 1px dashed rgba(255,255,255,.08);">
         <strong style="color: var(--text);">The honest version, in one sentence:</strong>
         the "vector database" category is correct for the workload it was named for — pure semantic search where vector recall is the <em>whole</em> job — and a dedicated vector layer is exactly the right shape there. <em>It's just no longer the most common AI workload — which is what makes "vector database" a misleading default for the agent-shaped systems most teams are actually shipping in 2026, and a misleading default for the platform-shaped data layer most non-agent systems are also outgrowing.</em>
+      </p>
+      <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 12px; line-height: 1.55;">
+        <strong style="color: var(--text);">And one more:</strong>
+        same-Lucene-<em>index</em> doesn't yet mean same-Lucene-<em>query</em>. <code>$rankFusion</code> is rank-level fusion; score-level weighted hybrid (Solr <code>function_score</code>, OpenSearch <code>hybrid</code>) and a <code>BooleanQuery</code>-style cross-modality clause are parts of the engine Atlas hasn't exposed yet. The bonus is real; it isn't the whole story. The third column in the panel above is exactly the part Atlas still leaves on the floor.
       </p>
     </section>
   </main>
@@ -2145,6 +2201,28 @@
             '</div>' +
             scoreCell +
           '</li>';
+        } else if (side === "hybrid") {
+          const bm25c = +h.bm25_contrib || 0;
+          const vecc  = +h.vec_contrib  || 0;
+          const matchedTag = h.bm25_matched
+            ? '<span class="tag match" title="real BM25 token overlap">match</span>'
+            : '<span class="tag" style="color:var(--muted);" title="no BM25 token overlap; score is vec-only">vec-only</span>';
+          const breakdown =
+            '<div class="breakdown">' +
+              '<span class="ctrb bm25">w·BM25 ' + bm25c.toFixed(5) + '</span>' +
+              ' + <span class="ctrb vec">w·cos ' + vecc.toFixed(5) + '</span>' +
+              ' = <span class="ctrb hybrid">' + h.score.toFixed(5) + '</span>' +
+            '</div>';
+          scoreCell = '<div class="score">' + h.score.toFixed(5) + '<small><span class="src hybrid">BoolQ</span></small></div>';
+          return '<li class="hit">' +
+            '<div class="rank">#' + h.rank + '</div>' +
+            '<div class="body">' +
+              '<div class="title-row"><span class="id">' + h._id + '</span><span class="title">' + escapeHtml(h.title) + '</span>' + matchedTag + '</div>' +
+              '<div class="plot">' + plot + '</div>' +
+              breakdown +
+            '</div>' +
+            scoreCell +
+          '</li>';
         } else {
           let tag = "";
           if (side === "bm25") {
@@ -2188,6 +2266,10 @@
         url.searchParams.set("q", q);
       }
       url.searchParams.set("k", k);
+      const bw = parseFloat(($("bm25-weight") || {}).value);
+      const vw = parseFloat(($("vec-weight")  || {}).value);
+      if (!Number.isNaN(bw)) url.searchParams.set("bm25_weight", bw);
+      if (!Number.isNaN(vw)) url.searchParams.set("vec_weight",  vw);
 
       const res = await fetch(url);
       if (!res.ok) { alert("Search failed: " + res.status + "\n" + (await res.text())); return; }
@@ -2222,11 +2304,19 @@
           ? '<strong>Same engine, two transports.</strong> Migration between Lucene-backed vector stores is a transport change, not a science project.'
           : 'Small dataset noise on ties — try a different query.') + '</span>';
 
-      // Reuse the simple legacy renderer for these three lists (no reviews / no genre meta).
+      // Reuse the simple legacy renderer for these lists (no reviews / no genre meta).
       renderHits($("bm25-list"), j.bm25.hits,        { highlightQuery: j.bm25.query, side: "bm25" });
       renderHits($("vec-list"),  j.vector.hits,      { highlightQuery: j.vector.query });
       renderHits($("lvec-list"), j.lucene_vec.hits,  { highlightQuery: j.lucene_vec.query, side: "lvec" });
       renderHits($("rrf-list"),  j.rrf.hits,         { highlightQuery: j.bm25.query, side: "rrf" });
+
+      if (j.hybrid) {
+        $("hyb-took").textContent = j.hybrid.took_ms + " ms";
+        $("hyb-sub").innerHTML =
+          '<code>BooleanQuery(BoostQuery(BM25, ' + j.hybrid.bm25_weight + '), BoostQuery(KnnFloatVectorQuery, ' + j.hybrid.vec_weight + '))</code>'
+          + '  →  <strong style="color:var(--hybrid)">' + j.hybrid.hits.length + '</strong> hits · score = w·BM25 + w·cos · summed by Lucene\'s BooleanScorer';
+        renderHits($("hyb-list"), j.hybrid.hits, { highlightQuery: j.bm25.query, side: "hybrid" });
+      }
     }
 
     document.querySelectorAll("#examples button").forEach(b => {
@@ -2237,6 +2327,10 @@
       });
     });
     form.addEventListener("submit", runEngine);
+    ["bm25-weight", "vec-weight"].forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener("change", () => { if ($("q").value.trim() || splitToggle.checked) runEngine(); });
+    });
 
     window.addEventListener("DOMContentLoaded", () => {
       runComposable();

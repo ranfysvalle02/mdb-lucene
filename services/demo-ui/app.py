@@ -349,17 +349,42 @@ def _lucene_vector(http: httpx.Client, vector: list[float], k: int) -> list[dict
     return r.json()
 
 
+def _lucene_hybrid(
+    http: httpx.Client, q: str, vector: list[float], k: int,
+    bm25_weight: float = 0.5, vec_weight: float = 0.5,
+) -> dict[str, Any]:
+    """Score-level hybrid: one Lucene BooleanQuery summing BoostQuery(BM25) + BoostQuery(kNN).
+
+    The capability Solr (`function_score`/`bf`/`bq`) and OpenSearch (`hybrid` query) expose at
+    the engine level. Atlas $rankFusion does rank-level (RRF) fusion only — there is no
+    user-facing way to ask `mongot` for `bm25_weight*textScore + vec_weight*cosineScore` in a
+    single query, even though the same Lucene `BooleanQuery(KnnFloatVectorQuery, TermQuery)`
+    primitive is sitting right there. We surface it here to make the gap concrete.
+    """
+    r = http.post(
+        f"{LUCENE_URL}/hybrid",
+        json={"q": q, "vector": vector, "k": k, "bm25_weight": bm25_weight, "vec_weight": vec_weight},
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 @app.get("/api/search")
 def api_search(
     q: str | None = Query(None),
     bm25: str | None = Query(None),
     vector: str | None = Query(None),
     k: int = Query(8, ge=1, le=50),
+    bm25_weight: float = Query(0.5, ge=0.0, le=1.0),
+    vec_weight: float = Query(0.5, ge=0.0, le=1.0),
 ) -> JSONResponse:
-    """Run BM25, $vectorSearch, and RRF fusion.
+    """Run BM25, $vectorSearch, Lucene kNN, RRF (rank-level), and a real Lucene
+    `BooleanQuery(BoostQuery(BM25), BoostQuery(kNN))` score-level hybrid.
 
-    - Pass ?q=... and the same query is sent to both engines (default mode).
+    - Pass ?q=... and the same query is sent to all engines (default mode).
     - Pass ?bm25=...&vector=... to use different queries per engine (compare mode).
+    - bm25_weight/vec_weight tune the score-level hybrid (default 0.5/0.5).
     """
     if not state["ready"]:
         return JSONResponse({"error": "service not ready", "details": state["seed_error"]}, status_code=503)
@@ -398,6 +423,13 @@ def api_search(
     t0 = time.perf_counter()
     lvec_hits = _lucene_vector(http, qvec, k)
     lvec_ms = (time.perf_counter() - t0) * 1000
+
+    # Score-level hybrid in ONE Lucene BooleanQuery: weight*BM25 + weight*cosine summed by the
+    # BooleanQuery scorer. Atlas does not expose this — $rankFusion is rank-level only.
+    t0 = time.perf_counter()
+    hyb = _lucene_hybrid(http, bm25_q, qvec, k, bm25_weight=bm25_weight, vec_weight=vec_weight)
+    hyb_ms = (time.perf_counter() - t0) * 1000
+    hyb_hits = hyb.get("hits", [])
 
     bm25_ids = [str(h["_id"]) for h in bm25_hits]
     vec_ids = [str(d["_id"]) for d in vec_hits]
@@ -493,6 +525,25 @@ def api_search(
                     },
                 }
                 for i, (doc_id, score) in enumerate(fused)
+            ],
+        },
+        "hybrid": {
+            "query": bm25_q,
+            "took_ms": round(hyb_ms, 2),
+            "bm25_weight": hyb.get("bm25_weight", bm25_weight),
+            "vec_weight": hyb.get("vec_weight", vec_weight),
+            "hits": [
+                {
+                    "rank": i + 1,
+                    "_id": str(h["_id"]),
+                    "title": meta.get(str(h["_id"]), {}).get("title", ""),
+                    "plot": meta.get(str(h["_id"]), {}).get("plot", ""),
+                    "score": float(h.get("score", 0)),
+                    "bm25_contrib": float(h.get("bm25_contrib", 0)),
+                    "vec_contrib": float(h.get("vec_contrib", 0)),
+                    "bm25_matched": bool(h.get("bm25_matched", False)),
+                }
+                for i, h in enumerate(hyb_hits)
             ],
         },
     })
